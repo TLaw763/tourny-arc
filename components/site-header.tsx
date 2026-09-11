@@ -1,0 +1,32 @@
+import Link from "next/link";
+import { AccountMenu } from "@/components/account-menu";
+import { getSession } from "@/lib/auth";
+import { resolvePublicSeasonId } from "@/lib/selected-season";
+
+export async function SiteHeader() {
+  const session = await getSession();
+  const seasonId = await resolvePublicSeasonId();
+  const fixturesHref = seasonId ? `/seasons/${seasonId}/schedule` : "/fixtures";
+  const standingsHref = seasonId ? `/standings?seasonId=${seasonId}` : "/standings";
+
+  return (
+    <header className="site-header sticky top-0 z-50">
+      <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3">
+        <Link href="/" className="text-lg font-bold no-underline">
+          Tourny Arc
+        </Link>
+        <nav className="flex flex-wrap items-center gap-3 text-sm">
+          <Link href={fixturesHref}>Fixtures</Link>
+          <Link href={standingsHref}>Standings</Link>
+          {session ? (
+            <AccountMenu email={session.email} />
+          ) : (
+            <Link href="/login" className="btn-primary no-underline">
+              Sign in
+            </Link>
+          )}
+        </nav>
+      </div>
+    </header>
+  );
+}
