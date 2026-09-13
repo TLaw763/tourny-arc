@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { FixtureStateBadge } from "@/components/fixture-state-badge";
 import { computeMatchOutcome, countGameResults, formatMatchScore } from "@/lib/domain/scoring";
 import { getPublicFixture } from "@/lib/queries";
+import { requireSelectedSeasonId } from "@/lib/selected-season";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +17,8 @@ export default async function FixtureDetailPage({
   if (!data) notFound();
 
   const { fixture, match } = data;
+  const selectedSeasonId = await requireSelectedSeasonId();
+  if (fixture.season_id !== selectedSeasonId) redirect("/");
   const pa = (Array.isArray(fixture.participant_a)
     ? fixture.participant_a[0]
     : fixture.participant_a) as {
@@ -60,8 +63,8 @@ export default async function FixtureDetailPage({
 
   return (
     <div className="space-y-6">
-      <Link href="/calendar" className="text-sm">
-        ← Calendar
+      <Link href={`/seasons/${fixture.season_id}/schedule`} className="text-sm">
+        ← Fixtures
       </Link>
       <div className="panel space-y-4 p-6">
         <div className="flex flex-wrap items-center gap-3">

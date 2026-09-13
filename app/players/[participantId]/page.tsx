@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { PlayerProfileCards } from "@/components/player-profile-cards";
 import { getPublicPlayerProfile } from "@/lib/queries";
-import { resolvePublicSeasonId } from "@/lib/selected-season";
+import { requireSelectedSeasonId } from "@/lib/selected-season";
 import { tournamentInitials } from "@/lib/tournament-display";
 
 export const dynamic = "force-dynamic";
@@ -16,18 +16,7 @@ export default async function PlayerPage({
 }) {
   const { participantId } = await params;
   const { seasonId: seasonIdParam } = await searchParams;
-  const seasonId = await resolvePublicSeasonId(seasonIdParam);
-
-  if (!seasonId) {
-    return (
-      <p className="text-[var(--color-text-muted)]">
-        No public tournaments yet.{" "}
-        <Link href="/" className="text-sm">
-          Browse tournaments
-        </Link>
-      </p>
-    );
-  }
+  const seasonId = await requireSelectedSeasonId(seasonIdParam);
 
   if (!seasonIdParam || seasonIdParam !== seasonId) {
     redirect(`/players/${participantId}?seasonId=${seasonId}`);

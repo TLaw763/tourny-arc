@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { StandingsTable } from "@/components/standings-table";
 import { getPublicSeason, getPublicStandingsEnriched } from "@/lib/queries";
-import { resolvePublicSeasonId } from "@/lib/selected-season";
+import { requireSelectedSeasonId } from "@/lib/selected-season";
 
 export const dynamic = "force-dynamic";
 
@@ -12,18 +12,7 @@ export default async function StandingsPage({
   searchParams: Promise<{ seasonId?: string }>;
 }) {
   const { seasonId: seasonIdParam } = await searchParams;
-  const seasonId = await resolvePublicSeasonId(seasonIdParam);
-
-  if (!seasonId) {
-    return (
-      <div className="space-y-4">
-        <Link href="/" className="text-sm">
-          ← All tournaments
-        </Link>
-        <p className="text-[var(--color-text-muted)]">No public tournaments yet.</p>
-      </div>
-    );
-  }
+  const seasonId = await requireSelectedSeasonId(seasonIdParam);
 
   if (!seasonIdParam || seasonIdParam !== seasonId) {
     redirect(`/standings?seasonId=${seasonId}`);
