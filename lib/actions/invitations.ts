@@ -6,6 +6,7 @@ import { requireAuth, isOrganizerForSeason } from "@/lib/auth";
 import { newId } from "@/lib/db/ids";
 import { sanitizeDisplayText } from "@/lib/domain";
 import { getAppUrl } from "@/lib/env";
+import { assertGmailAddress, normalizeEmail } from "@/lib/gmail-email";
 import { randomBytes } from "node:crypto";
 
 export async function inviteParticipantAction(
@@ -19,6 +20,9 @@ export async function inviteParticipantAction(
     throw new Error("Forbidden");
   }
 
+  const normalizedEmail = normalizeEmail(email);
+  assertGmailAddress(normalizedEmail);
+
   const admin = createAdminClient();
   const token = randomBytes(32).toString("hex");
   const now = new Date().toISOString();
@@ -28,7 +32,7 @@ export async function inviteParticipantAction(
     id: newId("invitation"),
     season_id: seasonId,
     participant_id: participantId ?? null,
-    email: email.toLowerCase().trim(),
+    email: normalizedEmail,
     display_name: sanitizeDisplayText(displayName, 100),
     role: "participant",
     token,

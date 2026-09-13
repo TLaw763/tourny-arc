@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { GamePlatformBadge } from "@/components/game-platform-badge";
+import { GamePlatformLabel, GamePlatformLogo } from "@/components/game-platform-badge";
 import type { PublicTournamentCard } from "@/lib/queries";
 import { formatSeasonDateRange, tournamentInitials } from "@/lib/tournament-display";
 
@@ -48,6 +48,11 @@ function TournamentCard({ tournament }: { tournament: PublicTournamentCard }) {
               alt=""
               className="tournament-card-logo-img"
             />
+          ) : tournament.gamePlatform ? (
+            <GamePlatformLogo
+              platform={tournament.gamePlatform}
+              className="tournament-card-logo-img tournament-card-logo-img--platform"
+            />
           ) : (
             <div className="tournament-card-logo-fallback" aria-hidden>
               {initials}
@@ -59,7 +64,7 @@ function TournamentCard({ tournament }: { tournament: PublicTournamentCard }) {
         <h2 className="tournament-card-title">{tournament.competitionName}</h2>
         <p className="tournament-card-season">{tournament.seasonName}</p>
         {tournament.gamePlatform && (
-          <GamePlatformBadge platform={tournament.gamePlatform} variant="card" />
+          <GamePlatformLabel platform={tournament.gamePlatform} variant="card" />
         )}
         {dateRange && <p className="tournament-card-meta">{dateRange}</p>}
         {tournament.description && (

@@ -11,6 +11,9 @@ import { ManualFixtureBuilder } from "@/components/manual-fixture-builder";
 import { ParticipantUsernameField } from "@/components/participant-username-field";
 import { RosterPlayerRow } from "@/components/roster-player-row";
 import { ResultEntry } from "@/components/result-entry";
+import { OrganizerCollapsibleSection } from "@/components/organizer-collapsible-section";
+import { OrganizerSectionHeader } from "@/components/organizer-section-header";
+import { TournamentBanListEditor } from "@/components/tournament-ban-list-editor";
 import {
   addParticipantAction,
   applyParticipantUsernameFromProfileAction,
@@ -29,7 +32,8 @@ import { inviteParticipantAction } from "@/lib/actions/invitations";
 import { correctResultAction, finalizeResultAction, submitResultAction } from "@/lib/actions/results";
 import { rebuildStandingsAction } from "@/lib/actions/standings";
 import type { ManualPairingInput } from "@/lib/domain/pairing";
-import type { ScheduleGenerationMode } from "@/lib/domain/types";
+import type { GamePlatform, ScheduleGenerationMode } from "@/lib/domain/types";
+import { isGamePlatform } from "@/lib/game-platform";
 
 type SeasonContext = Awaited<ReturnType<typeof getSeasonContextAction>>;
 
@@ -51,6 +55,9 @@ export default function OrganizerPage() {
 
   const [newPlayer, setNewPlayer] = useState("");
   const [newPlayerUsername, setNewPlayerUsername] = useState("");
+  const [sectionUpdating, setSectionUpdating] = useState<
+    "roster" | "generate" | "fixtures" | null
+  >(null);
 
   function participantLabel(p: {
     display_name: string;
@@ -174,10 +181,42 @@ export default function OrganizerPage() {
     setMessage("Standings rebuilt");
   }
 
+  async function refreshSeasonSection(section: "roster" | "fixtures") {
+    if (!seasonId) return;
+    setSectionUpdating(section);
+    try {
+      await load(seasonId);
+      setMessage(section === "roster" ? "Roster updated" : "Fixtures updated");
+    } finally {
+      setSectionUpdating(null);
+    }
+  }
+
+  async function handleUpdateGeneration() {
+    if (!seasonId) return;
+    setSectionUpdating("generate");
+    try {
+      if (!previewToken) {
+        await handlePreviewGeneration();
+        setMessage("Preview ready — click Update again to publish fixtures.");
+        return;
+      }
+      await handleCommitGeneration();
+    } finally {
+      setSectionUpdating(null);
+    }
+  }
+
   const fixtureGroups = useMemo(() => {
     if (!ctx) return [];
     return groupFixturesByRound(ctx.rounds ?? [], ctx.fixtures ?? []);
   }, [ctx]);
+
+  const competition = Array.isArray(ctx?.season?.competitions)
+    ? ctx.season.competitions[0]
+    : ctx?.season?.competitions;
+  const rawPlatform = (competition as { game_platform?: string | null } | undefined)?.game_platform;
+  const storedGamePlatform: GamePlatform | null = isGamePlatform(rawPlatform) ? rawPlatform : null;
 
   if (loading && !ctx) {
     return <p>Loading…</p>;
@@ -225,8 +264,13 @@ export default function OrganizerPage() {
         <p className="rounded-md bg-[var(--color-accent-soft)] p-3 text-sm">{message}</p>
       )}
 
-      <section className="panel space-y-3 p-4">
-        <h2 className="font-semibold">Roster ({eligibleParticipants.length} eligible)</h2>
+      <OrganizerCollapsibleSection
+        title={`Roster (${eligibleParticipants.length} eligible)`}
+        onUpdate={() => refreshSeasonSection("roster")}
+        loading={sectionUpdating === "roster"}
+        hint="Refresh roster from the server."
+        defaultOpen
+      >
         <div className="flex flex-wrap gap-2">
           <input
             className="field-input min-w-[10rem] flex-1"
@@ -265,10 +309,28 @@ export default function OrganizerPage() {
             />
           ))}
         </div>
-      </section>
+      </OrganizerCollapsibleSection>
 
-      <section className="panel space-y-3 p-4">
-        <h2 className="font-semibold">Generate fixtures</h2>
+      {seasonId && (
+        <TournamentBanListEditor
+          seasonId={seasonId}
+          storedGamePlatform={storedGamePlatform}
+          entries={ctx?.banList ?? []}
+          onChange={() => load(seasonId)}
+        />
+      )}
+
+      <OrganizerCollapsibleSection
+        title="Generate fixtures"
+        onUpdate={handleUpdateGeneration}
+        loading={sectionUpdating === "generate"}
+        defaultOpen={false}
+        hint={
+          previewToken
+            ? "Preview ready — update to publish fixtures."
+            : "Update to preview the schedule, then update again to publish."
+        }
+      >
         <select
           className="field-select max-w-xs"
           value={genMode}
@@ -303,10 +365,15 @@ export default function OrganizerPage() {
         <button type="button" className="btn-secondary" onClick={handleRebuildStandings}>
           Rebuild standings
         </button>
-      </section>
+      </OrganizerCollapsibleSection>
 
       <section className="panel space-y-6 p-4">
-        <h2 className="font-semibold">Fixtures ({ctx?.fixtures?.filter((f) => !f.is_bye).length ?? 0})</h2>
+        <OrganizerSectionHeader
+          title={`Fixtures (${ctx?.fixtures?.filter((f) => !f.is_bye).length ?? 0})`}
+          onUpdate={() => refreshSeasonSection("fixtures")}
+          loading={sectionUpdating === "fixtures"}
+          hint="Refresh fixtures, schedules, and results from the server."
+        />
         {fixtureGroups.length === 0 && (
           <p className="text-sm text-[var(--color-text-muted)]">No fixtures yet — generate a schedule above.</p>
         )}

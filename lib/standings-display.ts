@@ -85,7 +85,7 @@ export type DbStandingRow = {
   games_won: number;
   games_lost: number;
   match_points: number;
-  participants: { display_name: string } | null;
+  participants: { display_name: string; online_client_username?: string | null } | null;
 };
 
 export type EnrichedStandingRow = DbStandingRow & {

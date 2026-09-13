@@ -31,7 +31,12 @@ export async function GET(request: Request) {
   if (code) {
     const supabase = await createClient();
     const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error && data.user) {
+    if (error) {
+      const params = new URLSearchParams({ error: "auth", reason: "exchange" });
+      return NextResponse.redirect(`${origin}/login?${params}`);
+    }
+
+    if (data.user) {
       const user = data.user;
       const admin = createAdminClient();
       const { data: profile } = await admin

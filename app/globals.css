@@ -102,7 +102,7 @@ a {
   text-underline-offset: 0.15em;
 }
 
-a:hover {
+a:not(.btn-primary):not(.btn-secondary):not(.btn-danger):hover {
   color: var(--color-accent-hover);
 }
 
@@ -132,6 +132,7 @@ a:hover {
 
 .btn-primary:hover:not(:disabled) {
   background: var(--color-accent-hover);
+  color: var(--color-on-accent);
 }
 
 .btn-primary:disabled {
@@ -553,6 +554,13 @@ a:hover {
   justify-content: center;
 }
 
+.tournament-card-logo-img--platform,
+.tournament-hero-logo-img--platform {
+  background: var(--color-surface);
+  object-fit: contain;
+  padding: var(--space-2);
+}
+
 .tournament-card-body {
   display: flex;
   flex: 1;
@@ -593,41 +601,224 @@ a:hover {
   overflow: hidden;
 }
 
-.game-platform-badge {
-  align-items: center;
-  display: inline-flex;
-  gap: var(--space-2);
-  max-width: 100%;
-}
-
-.game-platform-badge--card {
-  margin-top: var(--space-1);
-}
-
-.game-platform-badge--hero {
-  margin-top: var(--space-2);
-}
-
-.game-platform-badge-logo {
-  flex-shrink: 0;
-  height: 1.25rem;
-  object-fit: contain;
-  width: auto;
-}
-
-.game-platform-badge--hero .game-platform-badge-logo {
-  height: 1.75rem;
-}
-
-.game-platform-badge-label {
+.game-platform-label {
   color: var(--color-text-muted);
+  display: block;
   font-size: var(--text-xs);
   font-weight: 600;
   line-height: 1.3;
 }
 
-.game-platform-badge--hero .game-platform-badge-label {
+.game-platform-label--card {
+  margin-top: var(--space-1);
+}
+
+.game-platform-label--hero {
   font-size: var(--text-sm);
+}
+
+.ban-list-grid {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+}
+
+.ban-list-section {
+  display: flex;
+  flex-direction: column;
+  max-height: 18rem;
+  padding: var(--space-3);
+}
+
+.ban-list-section-title {
+  align-items: center;
+  display: flex;
+  flex-shrink: 0;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  gap: var(--space-2);
+  justify-content: space-between;
+  margin-bottom: var(--space-2);
+}
+
+.ban-list-section-count {
+  background: var(--color-accent-soft);
+  border-radius: var(--radius-pill);
+  color: var(--color-accent);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  min-width: 1.5rem;
+  padding: 0 var(--space-2);
+  text-align: center;
+}
+
+.ban-list-empty {
+  color: var(--color-text-muted);
+  font-size: var(--text-sm);
+}
+
+.ban-list-items {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0;
+  scrollbar-gutter: stable;
+}
+
+.ban-list-items--readonly {
+  gap: var(--space-1);
+}
+
+.ban-list-items--readonly li {
+  font-size: var(--text-sm);
+}
+
+.ban-list-section--drop-target {
+  background: var(--color-accent-soft);
+  border: 1px dashed var(--color-accent);
+  outline: 2px solid color-mix(in srgb, var(--color-accent) 25%, transparent);
+}
+
+.ban-list-items--droppable {
+  min-height: 3rem;
+}
+
+.ban-list-drop-placeholder {
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  padding: var(--space-3);
+  text-align: center;
+}
+
+.ban-list-item {
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+}
+
+.ban-list-item--draggable {
+  cursor: grab;
+  touch-action: none;
+}
+
+.ban-list-item--draggable:active {
+  cursor: grabbing;
+}
+
+.ban-list-item--dragging {
+  opacity: 0.45;
+}
+
+.ban-list-item--pending {
+  opacity: 0.7;
+}
+
+.ban-list-item-main {
+  align-items: flex-start;
+  display: flex;
+  gap: var(--space-2);
+}
+
+.ban-list-drag-handle {
+  color: var(--color-text-muted);
+  flex-shrink: 0;
+  font-size: var(--text-sm);
+  line-height: 1.3;
+  user-select: none;
+}
+
+.ban-list-item:first-child {
+  border-top: none;
+  padding-top: 0;
+}
+
+.ban-list-item-name {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.ban-list-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.ban-list-item-select {
+  flex: 1;
+  font-size: var(--text-xs);
+  min-width: 7rem;
+}
+
+.admin-banlist-grid {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+}
+
+.card-autocomplete {
+  position: relative;
+}
+
+.card-autocomplete-list {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-raised);
+  left: 0;
+  list-style: none;
+  margin: var(--space-1) 0 0;
+  max-height: 14rem;
+  overflow-y: auto;
+  padding: var(--space-1);
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 20;
+}
+
+.card-autocomplete-option,
+.card-autocomplete-status {
+  align-items: center;
+  border-radius: var(--radius-sm);
+  display: flex;
+  font-size: var(--text-sm);
+  gap: var(--space-2);
+  justify-content: space-between;
+  padding: var(--space-2);
+  width: 100%;
+}
+
+.card-autocomplete-option {
+  background: transparent;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.card-autocomplete-option:hover {
+  background: var(--color-accent-soft);
+}
+
+.card-autocomplete-meta {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+
+.card-autocomplete-status {
+  color: var(--color-text-muted);
 }
 
 .tournament-page {
@@ -735,11 +926,24 @@ a:hover {
 }
 
 .standings-table-player-link {
-  font-weight: 600;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
   text-decoration: none;
 }
 
-.standings-table-player-link:hover {
+.standings-table-player-name {
+  font-weight: 600;
+}
+
+.standings-table-player-username {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+.standings-table-player-link:hover .standings-table-player-name {
   text-decoration: underline;
 }
 
@@ -825,6 +1029,92 @@ a:hover {
   color: var(--color-text-muted);
   font-size: 0.65rem;
   white-space: nowrap;
+}
+
+.form-progress-track--indeterminate {
+  overflow: hidden;
+  position: relative;
+}
+
+.form-progress-fill--indeterminate {
+  animation: progress-indeterminate 1.4s ease-in-out infinite;
+  width: 35%;
+}
+
+@keyframes progress-indeterminate {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+.ban-list-status .form-progress-label {
+  font-size: var(--text-sm);
+}
+
+.ban-list-unsaved {
+  border: 1px solid var(--color-accent);
+}
+
+.organizer-section-header-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.organizer-section-header {
+  align-items: center;
+  display: flex;
+  gap: var(--space-3);
+  justify-content: space-between;
+}
+
+.organizer-section-header h2 {
+  margin: 0;
+}
+
+.organizer-section-header-hint {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  margin: 0;
+}
+
+.organizer-collapsible {
+  overflow: hidden;
+}
+
+.organizer-collapsible-summary {
+  cursor: pointer;
+  list-style: none;
+  padding: var(--space-4);
+}
+
+.organizer-collapsible-summary::-webkit-details-marker {
+  display: none;
+}
+
+.organizer-collapsible-summary::before {
+  color: var(--color-text-muted);
+  content: "▸";
+  display: inline-block;
+  float: left;
+  margin-right: var(--space-2);
+  margin-top: 0.2rem;
+  transition: transform var(--duration-fast) var(--ease-standard);
+}
+
+.organizer-collapsible[open] .organizer-collapsible-summary::before {
+  transform: rotate(90deg);
+}
+
+.organizer-collapsible-body {
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
 }
 
 /* Player profile cards */

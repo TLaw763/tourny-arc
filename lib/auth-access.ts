@@ -1,9 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ACCESS_CONTACT_EMAIL } from "@/lib/constants";
-
-function normalizeEmail(email: string) {
-  return email.trim().toLowerCase();
-}
+import { isGmailAddress, normalizeEmail } from "@/lib/gmail-email";
 
 function getAllowlistedEmails(): Set<string> {
   const fromEnv = process.env.ALLOWED_SIGNUP_EMAILS ?? "";
@@ -53,9 +50,10 @@ export async function isInviteTokenValidForEmail(token: string, email: string) {
   return normalizeEmail(data.email) === normalizeEmail(email);
 }
 
-/** New accounts: allowlisted email, pending invite, or valid invite token in `next`. */
+/** New accounts: Gmail only, then allowlisted email, pending invite, or valid invite token. */
 export async function canCreateAccount(email: string, next: string | null) {
   if (!email) return false;
+  if (!isGmailAddress(email)) return false;
   if (isEmailAllowlisted(email)) return true;
   if (await hasPendingInvitation(email)) return true;
   const token = inviteTokenFromNext(next);

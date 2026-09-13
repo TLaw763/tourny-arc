@@ -32,8 +32,24 @@ export function getEnv(): Env {
   return cached;
 }
 
+function normalizeLocalAppUrl(url: string): string {
+  if (process.env.NODE_ENV === "production") return url;
+  try {
+    const parsed = new URL(url);
+    if (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1") {
+      parsed.protocol = "http:";
+      return parsed.origin;
+    }
+  } catch {
+    // fall through
+  }
+  return url;
+}
+
 export function getAppUrl(): string {
-  if (getEnv().NEXT_PUBLIC_APP_URL) return getEnv().NEXT_PUBLIC_APP_URL!;
+  if (getEnv().NEXT_PUBLIC_APP_URL) {
+    return normalizeLocalAppUrl(getEnv().NEXT_PUBLIC_APP_URL!);
+  }
   if (process.env.NODE_ENV === "production") {
     return "https://tornament.enigmic.co.za";
   }

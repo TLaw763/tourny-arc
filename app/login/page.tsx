@@ -1,13 +1,9 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { GoogleSignInButton } from "@/components/google-sign-in-button";
 import { ACCESS_CONTACT_EMAIL } from "@/lib/constants";
-
-function appOrigin() {
-  return process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-}
 
 function LoginForm() {
   const searchParams = useSearchParams();
@@ -15,7 +11,12 @@ function LoginForm() {
   const authError = searchParams.get("error") === "auth";
   const inviteOnly = searchParams.get("error") === "invite_only";
   const databaseError = searchParams.get("reason") === "database";
-  const origin = appOrigin();
+  const authReason = searchParams.get("reason");
+  const [origin, setOrigin] = useState("http://localhost:3000");
+
+  useEffect(() => {
+    setOrigin(window.location.origin);
+  }, []);
 
   return (
     <div className="panel mx-auto max-w-md space-y-4 p-6">
@@ -52,15 +53,14 @@ function LoginForm() {
       )}
       {authError && !databaseError && !inviteOnly && (
         <div className="space-y-2 text-sm text-[var(--color-danger)]">
-          <p>Sign-in failed. Check Supabase → Authentication → URL Configuration:</p>
-          <ul className="list-inside list-disc space-y-1 text-[var(--color-text-muted)]">
-            <li>
-              <strong>Site URL:</strong> <code>{origin}</code>
-            </li>
-            <li>
-              <strong>Redirect URL:</strong> <code>{origin}/auth/callback</code>
-            </li>
-          </ul>
+          <p>Sign-in failed. Add this exact redirect URL in Supabase → Authentication → URL Configuration → Redirect URLs:</p>
+          <p className="rounded-md bg-[var(--color-surface-subtle)] p-2 font-mono text-xs text-[var(--color-text)]">
+            {origin}/auth/callback
+          </p>
+          <p className="text-[var(--color-text-muted)]">
+            Use <strong>http</strong> (not https) for local dev. After saving in Supabase, try again.
+            {authReason === "exchange" && " The OAuth callback reached the app but session exchange failed — double-check the redirect URL matches exactly."}
+          </p>
         </div>
       )}
       <GoogleSignInButton next={next} />

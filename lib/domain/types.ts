@@ -2,6 +2,18 @@
 
 export type GamePlatform = "tcg" | "genesys" | "master_duel";
 
+export type BanListCategory = "forbidden" | "limited" | "semi_limited" | "unlimited";
+
+export type SeasonBanListEntry = {
+  id: string;
+  seasonId: string;
+  cardName: string;
+  cardId: number | null;
+  category: BanListCategory;
+  genesysPoints: number | null;
+  updatedAt: string;
+};
+
 export type CompetitionVisibility = "private" | "public";
 export type CompetitionStatus = "draft" | "active" | "completed" | "archived";
 export type SeasonStatus = "draft" | "active" | "completed" | "archived";

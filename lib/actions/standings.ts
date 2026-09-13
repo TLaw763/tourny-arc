@@ -104,7 +104,7 @@ export async function getStandingsAction(seasonId: string) {
   const admin = createAdminClient();
   const { data: standings } = await admin
     .from("standings")
-    .select("*, participants(display_name)")
+    .select("*, participants(display_name, online_client_username)")
     .eq("season_id", seasonId)
     .order("rank");
 

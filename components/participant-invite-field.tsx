@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { GMAIL_ONLY_INVITE_MESSAGE, isGmailAddress } from "@/lib/gmail-email";
 
 export function ParticipantInviteField({
   participantId,
@@ -30,6 +31,10 @@ export function ParticipantInviteField({
   async function handleInvite() {
     const trimmed = email.trim();
     if (!trimmed) return;
+    if (!isGmailAddress(trimmed)) {
+      setMessage(GMAIL_ONLY_INVITE_MESSAGE);
+      return;
+    }
     setLoading(true);
     setMessage(null);
     try {
@@ -50,9 +55,13 @@ export function ParticipantInviteField({
         <input
           className="field-input roster-player-row-email"
           type="email"
-          placeholder="Invite email"
+          placeholder="Gmail address"
+          autoComplete="email"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            if (message === GMAIL_ONLY_INVITE_MESSAGE) setMessage(null);
+          }}
         />
         <button
           type="button"
@@ -64,7 +73,13 @@ export function ParticipantInviteField({
         </button>
       </div>
       {message && (
-        <span className="roster-player-row-message max-w-full break-all text-xs text-[var(--color-text-muted)]">
+        <span
+          className={`roster-player-row-message max-w-full break-all text-xs ${
+            message === GMAIL_ONLY_INVITE_MESSAGE
+              ? "text-[var(--color-danger)]"
+              : "text-[var(--color-text-muted)]"
+          }`}
+        >
           {message.startsWith("http") ? `Link: ${message}` : message}
         </span>
       )}

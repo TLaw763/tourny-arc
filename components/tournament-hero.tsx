@@ -1,4 +1,4 @@
-import { GamePlatformBadge } from "@/components/game-platform-badge";
+import { GamePlatformLabel, GamePlatformLogo } from "@/components/game-platform-badge";
 import type { PublicTournamentCard } from "@/lib/queries";
 import { formatSeasonDateRange, tournamentInitials } from "@/lib/tournament-display";
 
@@ -25,6 +25,11 @@ export function TournamentHero({ tournament }: { tournament: PublicTournamentCar
           {tournament.logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={tournament.logoUrl} alt="" className="tournament-hero-logo-img" />
+          ) : tournament.gamePlatform ? (
+            <GamePlatformLogo
+              platform={tournament.gamePlatform}
+              className="tournament-hero-logo-img tournament-hero-logo-img--platform"
+            />
           ) : (
             <div className="tournament-hero-logo-fallback" aria-hidden>
               {initials}
@@ -35,7 +40,7 @@ export function TournamentHero({ tournament }: { tournament: PublicTournamentCar
           <h1 className="text-2xl font-bold">{tournament.competitionName}</h1>
           <p className="text-[var(--color-text-muted)]">{tournament.seasonName}</p>
           {tournament.gamePlatform && (
-            <GamePlatformBadge platform={tournament.gamePlatform} variant="hero" />
+            <GamePlatformLabel platform={tournament.gamePlatform} variant="hero" />
           )}
           {dateRange && <p className="text-sm text-[var(--color-text-muted)]">{dateRange}</p>}
           {tournament.description && (

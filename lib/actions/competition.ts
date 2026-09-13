@@ -11,7 +11,16 @@ import {
   sanitizeDisplayText,
   validateFormatWizardInput,
 } from "@/lib/domain";
-import type { CreateCompetitionWizardRequest, FormatPlanPreview } from "@/lib/domain/types";
+import {
+  applyReferenceBanlistToSeason,
+  getSeasonBanListWithPlatformDefaults,
+} from "@/lib/ban-list/apply-reference";
+import type {
+  CreateCompetitionWizardRequest,
+  FormatPlanPreview,
+  GamePlatform,
+} from "@/lib/domain/types";
+import { isGamePlatform } from "@/lib/game-platform";
 
 export async function previewFormatPlanAction(
   body: CreateCompetitionWizardRequest,
@@ -57,7 +66,8 @@ export async function createCompetitionWizardAction(body: CreateCompetitionWizar
 
   let { error: compErr } = await admin.from("competitions").insert(competitionRow);
   if (compErr?.message?.toLowerCase().includes("game_platform")) {
-    const { game_platform: _ignored, ...withoutPlatform } = competitionRow;
+    const { game_platform: omittedPlatform, ...withoutPlatform } = competitionRow;
+    void omittedPlatform;
     ({ error: compErr } = await admin.from("competitions").insert(withoutPlatform));
   }
   if (compErr) throw new Error(compErr.message);
@@ -147,18 +157,75 @@ export async function createCompetitionWizardAction(body: CreateCompetitionWizar
     }
   }
 
+  if (body.gamePlatform) {
+    try {
+      await applyReferenceBanlistToSeason(admin, seasonId, body.gamePlatform);
+    } catch {
+      // Tournament creation should succeed even if reference ban list tables are missing.
+    }
+  }
+
   await admin.from("audit_events").insert({
     id: newId("audit"),
     actor_customer_account_id: session.userId,
     action: "competition.wizard_created",
     target_type: "season",
     target_id: seasonId,
-    after: { competitionId, template: body.template },
+    after: { competitionId, template: body.template, gamePlatform: body.gamePlatform ?? null },
     occurred_at: now,
   });
 
   revalidatePath("/organizer");
+  revalidatePath(`/seasons/${seasonId}`);
   return { competitionId, seasonId, preview };
+}
+
+export async function updateCompetitionGamePlatformAction(
+  seasonId: string,
+  gamePlatform: GamePlatform,
+) {
+  const session = await requireAuth();
+  if (!(await isOrganizerForSeason(session.userId, seasonId))) {
+    throw new Error("Forbidden");
+  }
+  if (!isGamePlatform(gamePlatform)) throw new Error("Invalid play platform");
+
+  const admin = createAdminClient();
+  const { data: season } = await admin
+    .from("seasons")
+    .select("competition_id")
+    .eq("id", seasonId)
+    .single();
+  if (!season) throw new Error("Season not found");
+
+  const now = new Date().toISOString();
+  const { error } = await admin
+    .from("competitions")
+    .update({ game_platform: gamePlatform, updated_at: now })
+    .eq("id", season.competition_id);
+
+  if (error?.message?.toLowerCase().includes("game_platform")) {
+    throw new Error("Run migration 008_competition_game_platform.sql in Supabase, then try again.");
+  }
+  if (error) throw new Error(error.message);
+
+  const { data: existingBanList } = await admin
+    .from("season_ban_list_entries")
+    .select("id")
+    .eq("season_id", seasonId)
+    .limit(1);
+
+  if (!existingBanList?.length) {
+    try {
+      await applyReferenceBanlistToSeason(admin, seasonId, gamePlatform);
+    } catch {
+      // Reference tables may not be synced yet.
+    }
+  }
+
+  revalidatePath("/organizer");
+  revalidatePath(`/seasons/${seasonId}`);
+  revalidatePath(`/seasons/${seasonId}/ban-list`);
 }
 
 export async function addParticipantAction(
@@ -305,6 +372,8 @@ export async function getSeasonContextAction(seasonId: string) {
         .gt("expires_at", new Date().toISOString()),
     ]);
 
+  const banListRows = await getSeasonBanListWithPlatformDefaults(seasonId);
+
   const fixtureIds = (fixtures.data ?? []).map((f) => f.id);
   const { data: matches } = fixtureIds.length
     ? await admin.from("matches").select("fixture_id, outcome").in("fixture_id", fixtureIds)
@@ -323,6 +392,7 @@ export async function getSeasonContextAction(seasonId: string) {
     fixtures: fixtures.data ?? [],
     rounds: rounds.data ?? [],
     invitations: invitations.data ?? [],
+    banList: banListRows,
     matchesByFixtureId,
   };
 }

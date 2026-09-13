@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isPublicScheduleEligible } from "@/lib/domain";
-import type { FixtureState, GamePlatform } from "@/lib/domain/types";
+import type { BanListCategory, FixtureState, GamePlatform, SeasonBanListEntry } from "@/lib/domain/types";
 import { resolveGamePlatform } from "@/lib/game-platform";
 import {
   buildFormByParticipant,
@@ -23,24 +23,35 @@ function missingGamePlatformColumn(error: { message?: string } | null) {
   return Boolean(error?.message?.toLowerCase().includes("game_platform"));
 }
 
-export async function getPublicSeasons() {
+type PublicSeasonRow = {
+  id: string;
+  name: string;
+  status: string;
+  starts_at: string | null;
+  ends_at: string | null;
+  competitions: unknown;
+};
+
+export async function getPublicSeasons(): Promise<PublicSeasonRow[]> {
   const supabase = await createClient();
   const select = PUBLIC_SEASON_SELECT(PUBLIC_COMPETITION_FIELDS);
-  let { data, error } = await supabase
+  const initial = await supabase
     .from("seasons")
     .select(select)
     .eq("competitions.visibility", "public")
     .order("created_at", { ascending: false });
 
-  if (missingGamePlatformColumn(error)) {
-    ({ data } = await supabase
+  let data = initial.data;
+  if (missingGamePlatformColumn(initial.error)) {
+    const fallback = await supabase
       .from("seasons")
       .select(PUBLIC_SEASON_SELECT(PUBLIC_COMPETITION_FIELDS_BASE))
       .eq("competitions.visibility", "public")
-      .order("created_at", { ascending: false }));
+      .order("created_at", { ascending: false });
+    data = fallback.data;
   }
 
-  return data ?? [];
+  return (data ?? []) as unknown as PublicSeasonRow[];
 }
 
 export type PublicTournamentCard = {
@@ -62,9 +73,7 @@ function competitionRow(value: unknown) {
   return value as Record<string, unknown> | null | undefined;
 }
 
-export function mapPublicTournamentCards(
-  seasons: Awaited<ReturnType<typeof getPublicSeasons>>,
-): PublicTournamentCard[] {
+export function mapPublicTournamentCards(seasons: PublicSeasonRow[]): PublicTournamentCard[] {
   return seasons.map((s) => {
     const competition = competitionRow(s.competitions);
     return {
@@ -88,25 +97,48 @@ export function mapPublicTournamentCards(
 
 export async function getPublicSeason(seasonId: string) {
   const supabase = await createClient();
-  let { data, error } = await supabase
+  const initial = await supabase
     .from("seasons")
     .select(PUBLIC_SEASON_SELECT(PUBLIC_COMPETITION_FIELDS))
     .eq("id", seasonId)
     .eq("competitions.visibility", "public")
     .maybeSingle();
 
-  if (missingGamePlatformColumn(error)) {
-    ({ data } = await supabase
+  let data = initial.data;
+  if (missingGamePlatformColumn(initial.error)) {
+    const fallback = await supabase
       .from("seasons")
       .select(PUBLIC_SEASON_SELECT(PUBLIC_COMPETITION_FIELDS_BASE))
       .eq("id", seasonId)
       .eq("competitions.visibility", "public")
-      .maybeSingle());
+      .maybeSingle();
+    data = fallback.data;
   }
 
   if (!data) return null;
-  const cards = mapPublicTournamentCards([data]);
+  const cards = mapPublicTournamentCards([data as unknown as PublicSeasonRow]);
   return cards[0] ?? null;
+}
+
+export async function getPublicSeasonBanList(seasonId: string): Promise<SeasonBanListEntry[]> {
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("season_ban_list_entries")
+    .select("id, season_id, card_name, card_id, category, genesys_points, updated_at")
+    .eq("season_id", seasonId)
+    .order("card_name");
+
+  if (error) return [];
+
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    seasonId: row.season_id,
+    cardName: row.card_name,
+    cardId: row.card_id ?? null,
+    category: row.category as BanListCategory,
+    genesysPoints: row.genesys_points ?? null,
+    updatedAt: row.updated_at,
+  }));
 }
 
 function participantName(value: unknown): string {
@@ -277,7 +309,7 @@ export async function getPublicStandings(seasonId: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from("standings")
-    .select("*, participants(display_name)")
+    .select("*, participants(display_name, online_client_username)")
     .eq("season_id", seasonId)
     .order("rank");
   return data ?? [];

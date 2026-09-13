@@ -26,10 +26,7 @@ export async function updateSession(request: NextRequest) {
 
   const seasonPathMatch = request.nextUrl.pathname.match(/^\/seasons\/([^/]+)/);
   const seasonFromPath = seasonPathMatch?.[1];
-  const seasonFromQuery =
-    request.nextUrl.pathname === "/standings"
-      ? request.nextUrl.searchParams.get("seasonId")
-      : null;
+  const seasonFromQuery = request.nextUrl.searchParams.get("seasonId");
   const seasonId = seasonFromPath ?? seasonFromQuery;
   if (seasonId) {
     supabaseResponse.cookies.set(SELECTED_SEASON_COOKIE, seasonId, {

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { ColorModeSwitcher } from "@/components/color-mode-switcher";
 
-export function AccountMenu({ email }: { email: string }) {
+export function AccountMenu({ email, isAdmin = false }: { email: string; isAdmin?: boolean }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const label = email.split("@")[0] || "Account";
@@ -41,6 +41,11 @@ export function AccountMenu({ email }: { email: string }) {
           <Link href="/organizer" className="account-menu-item" role="menuitem" onClick={() => setOpen(false)}>
             Organizer
           </Link>
+          {isAdmin && (
+            <Link href="/admin" className="account-menu-item" role="menuitem" onClick={() => setOpen(false)}>
+              Site admin
+            </Link>
+          )}
           <Link href="/my-fixtures" className="account-menu-item" role="menuitem" onClick={() => setOpen(false)}>
             My fixtures
           </Link>

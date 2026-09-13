@@ -52,7 +52,14 @@ export function StandingsTable({
                   href={`/players/${row.participant_id}?seasonId=${seasonId}`}
                   className="standings-table-player-link"
                 >
-                  {row.participants?.display_name ?? row.participant_id}
+                  <span className="standings-table-player-name">
+                    {row.participants?.display_name ?? row.participant_id}
+                  </span>
+                  {row.participants?.online_client_username && (
+                    <span className="standings-table-player-username">
+                      {row.participants.online_client_username}
+                    </span>
+                  )}
                 </Link>
               </td>
               <td>{row.matches_played}</td>
