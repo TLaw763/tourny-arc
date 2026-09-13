@@ -33,5 +33,9 @@ export function getEnv(): Env {
 }
 
 export function getAppUrl(): string {
-  return getEnv().NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  if (getEnv().NEXT_PUBLIC_APP_URL) return getEnv().NEXT_PUBLIC_APP_URL!;
+  if (process.env.NODE_ENV === "production") {
+    return "https://tornament.enigmic.co.za";
+  }
+  return "http://localhost:3000";
 }

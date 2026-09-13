@@ -1,8 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 type ColorMode = "light" | "dark";
+
+function readMode(): ColorMode {
+  const current = document.documentElement.getAttribute("data-color-mode");
+  return current === "dark" || current === "light" ? current : "dark";
+}
 
 function applyMode(mode: ColorMode) {
   document.documentElement.setAttribute("data-color-mode", mode);
@@ -10,12 +15,9 @@ function applyMode(mode: ColorMode) {
 }
 
 export function ColorModeSwitcher({ compact = false }: { compact?: boolean }) {
-  const [mode, setMode] = useState<ColorMode>("light");
-
-  useEffect(() => {
-    const current = document.documentElement.getAttribute("data-color-mode");
-    if (current === "dark" || current === "light") setMode(current);
-  }, []);
+  const [mode, setMode] = useState<ColorMode>(() =>
+    typeof document === "undefined" ? "dark" : readMode(),
+  );
 
   function toggle() {
     const next: ColorMode = mode === "dark" ? "light" : "dark";

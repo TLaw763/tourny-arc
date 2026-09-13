@@ -1,6 +1,25 @@
 @import "tailwindcss";
 
-:root,
+:root {
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-lg: 0.875rem;
+  --radius-pill: 999px;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.5rem;
+  --duration-fast: 120ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+}
+
 [data-color-mode="light"] {
   color-scheme: light;
   --color-canvas: #f5f6f8;
@@ -26,26 +45,10 @@
   --color-info-soft: #eaf0ff;
   --color-disabled-surface: #eef0f3;
   --color-disabled-text: #667085;
-  --radius-sm: 0.375rem;
-  --radius-md: 0.625rem;
-  --radius-lg: 0.875rem;
-  --radius-pill: 999px;
-  --space-1: 0.25rem;
-  --space-2: 0.5rem;
-  --space-3: 0.75rem;
-  --space-4: 1rem;
-  --space-6: 1.5rem;
-  --space-8: 2rem;
-  --text-xs: 0.75rem;
-  --text-sm: 0.875rem;
-  --text-md: 1rem;
-  --text-lg: 1.125rem;
-  --text-xl: 1.5rem;
   --shadow-raised: 0 1px 2px rgb(16 24 40 / 5%), 0 8px 24px rgb(16 24 40 / 8%);
-  --duration-fast: 120ms;
-  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
 }
 
+:root,
 [data-color-mode="dark"] {
   color-scheme: dark;
   --color-canvas: #11151b;
@@ -516,6 +519,7 @@ a:hover {
 .tournament-card-logo-wrap {
   height: 3.5rem;
   width: 3.5rem;
+  z-index: 2;
 }
 
 .tournament-hero-logo-wrap {
@@ -553,11 +557,15 @@ a:hover {
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: var(--space-1);
-  padding: calc(var(--space-4) + var(--space-2)) var(--space-4) var(--space-4);
+  gap: var(--space-2);
+  min-height: 0;
+  padding: calc(var(--space-3) + var(--space-6)) var(--space-4) var(--space-4);
+  position: relative;
+  z-index: 1;
 }
 
 .tournament-card-title {
+  color: var(--color-text);
   font-size: var(--text-lg);
   font-weight: 700;
   line-height: 1.25;
@@ -566,6 +574,7 @@ a:hover {
 .tournament-card-season {
   color: var(--color-text-muted);
   font-size: var(--text-sm);
+  line-height: 1.4;
 }
 
 .tournament-card-meta {
@@ -582,6 +591,43 @@ a:hover {
   line-clamp: 2;
   margin-top: var(--space-1);
   overflow: hidden;
+}
+
+.game-platform-badge {
+  align-items: center;
+  display: inline-flex;
+  gap: var(--space-2);
+  max-width: 100%;
+}
+
+.game-platform-badge--card {
+  margin-top: var(--space-1);
+}
+
+.game-platform-badge--hero {
+  margin-top: var(--space-2);
+}
+
+.game-platform-badge-logo {
+  flex-shrink: 0;
+  height: 1.25rem;
+  object-fit: contain;
+  width: auto;
+}
+
+.game-platform-badge--hero .game-platform-badge-logo {
+  height: 1.75rem;
+}
+
+.game-platform-badge-label {
+  color: var(--color-text-muted);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.game-platform-badge--hero .game-platform-badge-label {
+  font-size: var(--text-sm);
 }
 
 .tournament-page {

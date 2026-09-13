@@ -12,8 +12,10 @@ import type {
   CompetitionFormatTemplate,
   CreateCompetitionWizardRequest,
   FormatPlanPreview,
+  GamePlatform,
   ScheduleGenerationMode,
 } from "@/lib/domain/types";
+import { GAME_PLATFORMS, gamePlatformLabel } from "@/lib/game-platform";
 
 const STEPS = ["Basics", "Format", "Configure", "Players", "Review"] as const;
 
@@ -29,6 +31,7 @@ export default function CreateCompetitionPage() {
     visibility: "public",
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     seasonName: "Season 1",
+    gamePlatform: "master_duel",
     template: "league",
     leagueMode: "single_round_robin",
     rosterPlayers: [],
@@ -115,6 +118,25 @@ export default function CreateCompetitionPage() {
               value={form.seasonName}
               onChange={(e) => update("seasonName", e.target.value)}
             />
+            <label className="space-y-1 text-sm">
+              <span className="font-medium">Play platform</span>
+              <select
+                className="field-select"
+                value={form.gamePlatform ?? ""}
+                onChange={(e) =>
+                  update("gamePlatform", (e.target.value || null) as GamePlatform | null)
+                }
+              >
+                <option value="" disabled>
+                  Select platform…
+                </option>
+                {GAME_PLATFORMS.map((platform) => (
+                  <option key={platform} value={platform}>
+                    {gamePlatformLabel(platform)}
+                  </option>
+                ))}
+              </select>
+            </label>
             <select
               className="field-select"
               value={form.visibility}
@@ -212,6 +234,11 @@ export default function CreateCompetitionPage() {
             <p>
               <strong>{form.name}</strong> — {preview.templateLabel}
             </p>
+            {form.gamePlatform && (
+              <p className="text-sm text-[var(--color-text-muted)]">
+                Platform: {gamePlatformLabel(form.gamePlatform)}
+              </p>
+            )}
             <ul className="list-disc pl-5 text-sm">
               {preview.phases.map((p) => (
                 <li key={p.sequence}>
@@ -240,7 +267,7 @@ export default function CreateCompetitionPage() {
               type="button"
               className="btn-primary"
               onClick={() => setStep(step + 1)}
-              disabled={step === 0 && !form.name.trim()}
+              disabled={step === 0 && (!form.name.trim() || !form.gamePlatform)}
             >
               Next
             </button>

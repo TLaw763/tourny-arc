@@ -1,5 +1,7 @@
 /** Domain types aligned with competition-contracts for migration compatibility. */
 
+export type GamePlatform = "tcg" | "genesys" | "master_duel";
+
 export type CompetitionVisibility = "private" | "public";
 export type CompetitionStatus = "draft" | "active" | "completed" | "archived";
 export type SeasonStatus = "draft" | "active" | "completed" | "archived";
@@ -113,6 +115,7 @@ export type Standing = {
 export type CreateCompetitionWizardRequest = {
   name: string;
   description?: string | null;
+  gamePlatform?: GamePlatform | null;
   logoUrl?: string | null;
   coverImageUrl?: string | null;
   visibility: CompetitionVisibility;

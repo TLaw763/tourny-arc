@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isPublicScheduleEligible } from "@/lib/domain";
-import type { FixtureState } from "@/lib/domain/types";
+import type { FixtureState, GamePlatform } from "@/lib/domain/types";
+import { resolveGamePlatform } from "@/lib/game-platform";
 import {
   buildFormByParticipant,
   countSeasonFixturesByParticipant,
@@ -11,18 +12,34 @@ import {
   type FormResult,
 } from "@/lib/standings-display";
 
-const PUBLIC_COMPETITION_FIELDS =
+const PUBLIC_COMPETITION_FIELDS_BASE =
   "id, name, description, visibility, timezone, logo_url, cover_image_url";
+const PUBLIC_COMPETITION_FIELDS = `${PUBLIC_COMPETITION_FIELDS_BASE}, game_platform`;
+
+const PUBLIC_SEASON_SELECT = (competitionFields: string) =>
+  `id, name, status, starts_at, ends_at, competitions!inner(${competitionFields})`;
+
+function missingGamePlatformColumn(error: { message?: string } | null) {
+  return Boolean(error?.message?.toLowerCase().includes("game_platform"));
+}
 
 export async function getPublicSeasons() {
   const supabase = await createClient();
-  const { data } = await supabase
+  const select = PUBLIC_SEASON_SELECT(PUBLIC_COMPETITION_FIELDS);
+  let { data, error } = await supabase
     .from("seasons")
-    .select(
-      `id, name, status, starts_at, ends_at, competitions!inner(${PUBLIC_COMPETITION_FIELDS})`,
-    )
+    .select(select)
     .eq("competitions.visibility", "public")
     .order("created_at", { ascending: false });
+
+  if (missingGamePlatformColumn(error)) {
+    ({ data } = await supabase
+      .from("seasons")
+      .select(PUBLIC_SEASON_SELECT(PUBLIC_COMPETITION_FIELDS_BASE))
+      .eq("competitions.visibility", "public")
+      .order("created_at", { ascending: false }));
+  }
+
   return data ?? [];
 }
 
@@ -35,6 +52,7 @@ export type PublicTournamentCard = {
   competitionId: string;
   competitionName: string;
   description: string | null;
+  gamePlatform: GamePlatform | null;
   logoUrl: string | null;
   coverImageUrl: string | null;
 };
@@ -58,6 +76,10 @@ export function mapPublicTournamentCards(
       competitionId: (competition?.id as string) ?? "",
       competitionName: (competition?.name as string) ?? "Competition",
       description: (competition?.description as string | null) ?? null,
+      gamePlatform: resolveGamePlatform(
+        competition?.game_platform as string | null | undefined,
+        (competition?.name as string | undefined) ?? null,
+      ),
       logoUrl: (competition?.logo_url as string | null) ?? null,
       coverImageUrl: (competition?.cover_image_url as string | null) ?? null,
     };
@@ -66,14 +88,22 @@ export function mapPublicTournamentCards(
 
 export async function getPublicSeason(seasonId: string) {
   const supabase = await createClient();
-  const { data } = await supabase
+  let { data, error } = await supabase
     .from("seasons")
-    .select(
-      `id, name, status, starts_at, ends_at, competitions!inner(${PUBLIC_COMPETITION_FIELDS})`,
-    )
+    .select(PUBLIC_SEASON_SELECT(PUBLIC_COMPETITION_FIELDS))
     .eq("id", seasonId)
     .eq("competitions.visibility", "public")
     .maybeSingle();
+
+  if (missingGamePlatformColumn(error)) {
+    ({ data } = await supabase
+      .from("seasons")
+      .select(PUBLIC_SEASON_SELECT(PUBLIC_COMPETITION_FIELDS_BASE))
+      .eq("id", seasonId)
+      .eq("competitions.visibility", "public")
+      .maybeSingle());
+  }
+
   if (!data) return null;
   const cards = mapPublicTournamentCards([data]);
   return cards[0] ?? null;

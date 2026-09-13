@@ -5,12 +5,17 @@ import { Suspense } from "react";
 import { GoogleSignInButton } from "@/components/google-sign-in-button";
 import { ACCESS_CONTACT_EMAIL } from "@/lib/constants";
 
+function appOrigin() {
+  return process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+}
+
 function LoginForm() {
   const searchParams = useSearchParams();
   const next = searchParams.get("next") ?? "/organizer";
   const authError = searchParams.get("error") === "auth";
   const inviteOnly = searchParams.get("error") === "invite_only";
   const databaseError = searchParams.get("reason") === "database";
+  const origin = appOrigin();
 
   return (
     <div className="panel mx-auto max-w-md space-y-4 p-6">
@@ -50,10 +55,10 @@ function LoginForm() {
           <p>Sign-in failed. Check Supabase → Authentication → URL Configuration:</p>
           <ul className="list-inside list-disc space-y-1 text-[var(--color-text-muted)]">
             <li>
-              <strong>Site URL:</strong> <code>http://localhost:3000</code>
+              <strong>Site URL:</strong> <code>{origin}</code>
             </li>
             <li>
-              <strong>Redirect URL:</strong> <code>http://localhost:3000/auth/callback</code>
+              <strong>Redirect URL:</strong> <code>{origin}/auth/callback</code>
             </li>
           </ul>
         </div>

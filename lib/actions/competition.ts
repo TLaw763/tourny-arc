@@ -40,19 +40,26 @@ export async function createCompetitionWizardAction(body: CreateCompetitionWizar
   const formatPlanId = newId("format-plan");
   const leagueMode = leagueModeFromFormatPlan(phases) ?? "single_round_robin";
 
-  const { error: compErr } = await admin.from("competitions").insert({
+  const competitionRow = {
     id: competitionId,
     name: sanitizeDisplayText(body.name, 200),
     description: body.description ? sanitizeDisplayText(body.description, 2000) : null,
     logo_url: body.logoUrl?.trim() || null,
     cover_image_url: body.coverImageUrl?.trim() || null,
+    game_platform: body.gamePlatform ?? null,
     visibility: body.visibility,
     status: "draft",
     owner_customer_account_id: session.userId,
     timezone: body.timezone,
     created_at: now,
     updated_at: now,
-  });
+  };
+
+  let { error: compErr } = await admin.from("competitions").insert(competitionRow);
+  if (compErr?.message?.toLowerCase().includes("game_platform")) {
+    const { game_platform: _ignored, ...withoutPlatform } = competitionRow;
+    ({ error: compErr } = await admin.from("competitions").insert(withoutPlatform));
+  }
   if (compErr) throw new Error(compErr.message);
 
   const { error: seasonErr } = await admin.from("seasons").insert({

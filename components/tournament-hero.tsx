@@ -1,3 +1,4 @@
+import { GamePlatformBadge } from "@/components/game-platform-badge";
 import type { PublicTournamentCard } from "@/lib/queries";
 import { formatSeasonDateRange, tournamentInitials } from "@/lib/tournament-display";
 
@@ -33,6 +34,9 @@ export function TournamentHero({ tournament }: { tournament: PublicTournamentCar
         <div className="min-w-0 space-y-1">
           <h1 className="text-2xl font-bold">{tournament.competitionName}</h1>
           <p className="text-[var(--color-text-muted)]">{tournament.seasonName}</p>
+          {tournament.gamePlatform && (
+            <GamePlatformBadge platform={tournament.gamePlatform} variant="hero" />
+          )}
           {dateRange && <p className="text-sm text-[var(--color-text-muted)]">{dateRange}</p>}
           {tournament.description && (
             <p className="pt-2 text-sm">{tournament.description}</p>

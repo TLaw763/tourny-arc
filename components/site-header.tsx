@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AccountMenu } from "@/components/account-menu";
+import { TeLogo } from "@/components/te-logo";
 import { getSession } from "@/lib/auth";
 import { resolvePublicSeasonId } from "@/lib/selected-season";
 
@@ -13,7 +14,7 @@ export async function SiteHeader() {
     <header className="site-header sticky top-0 z-50">
       <div className="mx-auto flex max-w-5xl items-center justify-between gap-4 px-4 py-3">
         <Link href="/" className="text-lg font-bold no-underline">
-          Tourny Arc
+          <TeLogo />
         </Link>
         <nav className="flex flex-wrap items-center gap-3 text-sm">
           <Link href={fixturesHref}>Fixtures</Link>

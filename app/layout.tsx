@@ -1,16 +1,26 @@
 import type { Metadata } from "next";
 import { SiteHeader } from "@/components/site-header";
 import { ThemeScript } from "@/components/theme-script";
+import { APP_DESCRIPTION, APP_NAME, APP_URL } from "@/lib/branding";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Tourny Arc — League Management",
-  description: "Standalone league and tournament management",
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? APP_URL),
+  title: {
+    default: `${APP_NAME} — League Management`,
+    template: `%s · ${APP_NAME}`,
+  },
+  description: APP_DESCRIPTION,
+  applicationName: APP_NAME,
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
+    apple: [{ url: "/apple-icon.svg", type: "image/svg+xml" }],
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" data-color-mode="dark" suppressHydrationWarning>
       <body className="font-sans antialiased">
         <ThemeScript />
         <SiteHeader />
