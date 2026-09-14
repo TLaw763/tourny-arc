@@ -298,9 +298,11 @@ export async function getPublicScheduleFixtures(seasonId: string) {
 }
 
 export async function getPublicCalendarFixtures(seasonId?: string) {
-  const supabase = await createClient();
+  if (seasonId && !(await isPublicSeason(seasonId))) return [];
+
+  const admin = createAdminClient();
   return queryPublicFixtures(async (select) => {
-    let query = supabase
+    let query = admin
       .from("fixtures")
       .select(select)
       .eq("is_bye", false)

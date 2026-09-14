@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { FixtureCalendarGrid } from "@/components/fixture-calendar-grid";
 import {
   getPublicCalendarFixtures,
@@ -17,6 +17,11 @@ export default async function CalendarPage({
 }) {
   const params = await searchParams;
   const seasonId = await requireSelectedSeasonId(params.seasonId);
+
+  if (!params.seasonId || params.seasonId !== seasonId) {
+    redirect(`/calendar?seasonId=${seasonId}`);
+  }
+
   const tournament = await getPublicSeason(seasonId);
   if (!tournament) notFound();
 

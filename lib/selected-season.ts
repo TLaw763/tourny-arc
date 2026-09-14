@@ -32,17 +32,16 @@ export async function getSelectedSeasonId(paramSeasonId?: string | null): Promis
   const validIds = await validSeasonIds();
   if (!validIds.size) return null;
 
+  if (paramSeasonId) {
+    return validIds.has(paramSeasonId) ? paramSeasonId : null;
+  }
+
   const cookieStore = await cookies();
-  const candidate = resolveCandidate(
+  return resolveCandidate(
     validIds,
     headerStore.get(SELECTED_SEASON_HEADER),
     cookieStore.get(SELECTED_SEASON_COOKIE)?.value,
   );
-
-  if (!candidate) return null;
-  if (paramSeasonId && paramSeasonId !== candidate) return null;
-
-  return candidate;
 }
 
 export async function requireSelectedSeasonId(paramSeasonId?: string | null): Promise<string> {
