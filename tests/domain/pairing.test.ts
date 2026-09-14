@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
+  assignParticipantInRound,
   generateDoubleRoundRobin,
   generateSingleRoundRobin,
   manualPairingsToRounds,
+  validateEditedRounds,
   validateManualPairings,
 } from "../../lib/domain/pairing";
 import { buildGenerationPreview, verifyPreviewToken } from "../../lib/domain/generation";
@@ -62,6 +64,64 @@ describe("double round-robin", () => {
     assert.equal(rounds.length, 2);
     assert.equal(rounds[0]!.fixtures[0]!.participantAId, "p1");
     assert.equal(rounds[1]!.fixtures[0]!.participantAId, "p2");
+  });
+});
+
+describe("assign participant in round", () => {
+  it("swaps participants when assigning someone already in the round", () => {
+    const round = {
+      sequence: 1,
+      label: "Round 1",
+      fixtures: [
+        { participantAId: "p1", participantBId: "p2", isBye: false },
+        { participantAId: "p3", participantBId: "p4", isBye: false },
+      ],
+    };
+
+    const updated = assignParticipantInRound(round, 0, "A", "p3");
+
+    assert.equal(updated.fixtures[0]!.participantAId, "p3");
+    assert.equal(updated.fixtures[0]!.participantBId, "p2");
+    assert.equal(updated.fixtures[1]!.participantAId, "p1");
+    assert.equal(updated.fixtures[1]!.participantBId, "p4");
+  });
+
+  it("swaps within the same fixture when selecting the opposite side", () => {
+    const round = {
+      sequence: 1,
+      label: "Round 1",
+      fixtures: [{ participantAId: "p1", participantBId: "p2", isBye: false }],
+    };
+
+    const updated = assignParticipantInRound(round, 0, "A", "p2");
+
+    assert.equal(updated.fixtures[0]!.participantAId, "p2");
+    assert.equal(updated.fixtures[0]!.participantBId, "p1");
+  });
+});
+
+describe("edited rounds", () => {
+  it("accepts a valid double round-robin preview", () => {
+    const rounds = generateDoubleRoundRobin(["p1", "p2", "p3", "p4"]);
+    const result = validateEditedRounds(rounds, ["p1", "p2", "p3", "p4"]);
+    assert.equal(result.blockingErrors.length, 0);
+  });
+
+  it("rejects duplicate participants in the same round", () => {
+    const result = validateEditedRounds(
+      [
+        {
+          sequence: 1,
+          label: "Round 1",
+          fixtures: [
+            { participantAId: "p1", participantBId: "p2", isBye: false },
+            { participantAId: "p1", participantBId: "p3", isBye: false },
+          ],
+        },
+      ],
+      ["p1", "p2", "p3"],
+    );
+    assert.ok(result.blockingErrors.some((e) => e.code === "DUPLICATE_IN_ROUND"));
   });
 });
 

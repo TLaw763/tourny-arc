@@ -165,6 +165,167 @@ export function validateManualPairings(
   return { blockingErrors, warnings };
 }
 
+type FixtureSide = "A" | "B";
+
+function fixtureParticipantId(fixture: PairingFixture, side: FixtureSide): string {
+  return side === "A" ? fixture.participantAId : fixture.participantBId;
+}
+
+function setFixtureParticipantId(
+  fixture: PairingFixture,
+  side: FixtureSide,
+  participantId: string,
+): PairingFixture {
+  return side === "A"
+    ? { ...fixture, participantAId: participantId }
+    : { ...fixture, participantBId: participantId };
+}
+
+function findParticipantSlotInRound(
+  round: PairingRound,
+  participantId: string,
+): { fixtureIndex: number; side: FixtureSide } | null {
+  for (let fixtureIndex = 0; fixtureIndex < round.fixtures.length; fixtureIndex++) {
+    const fixture = round.fixtures[fixtureIndex]!;
+    if (fixture.isBye) continue;
+    if (fixture.participantAId === participantId) {
+      return { fixtureIndex, side: "A" };
+    }
+    if (fixture.participantBId === participantId) {
+      return { fixtureIndex, side: "B" };
+    }
+  }
+  return null;
+}
+
+/** Assign a participant to a slot; if they already appear elsewhere in the round, swap places. */
+export function assignParticipantInRound(
+  round: PairingRound,
+  fixtureIndex: number,
+  side: FixtureSide,
+  participantId: string,
+): PairingRound {
+  const target = round.fixtures[fixtureIndex];
+  if (!target || target.isBye) return round;
+
+  const currentParticipantId = fixtureParticipantId(target, side);
+  if (currentParticipantId === participantId) return round;
+
+  const fixtures = round.fixtures.map((fixture) => ({ ...fixture }));
+  const source = findParticipantSlotInRound(round, participantId);
+
+  fixtures[fixtureIndex] = setFixtureParticipantId(fixtures[fixtureIndex]!, side, participantId);
+
+  if (source) {
+    fixtures[source.fixtureIndex] = setFixtureParticipantId(
+      fixtures[source.fixtureIndex]!,
+      source.side,
+      currentParticipantId,
+    );
+  }
+
+  return { ...round, fixtures };
+}
+
+/** Assign across a full schedule preview (round index + fixture index). */
+export function assignParticipantInSchedule(
+  rounds: PairingRound[],
+  roundIndex: number,
+  fixtureIndex: number,
+  side: FixtureSide,
+  participantId: string,
+): PairingRound[] {
+  return rounds.map((round, index) =>
+    index === roundIndex
+      ? assignParticipantInRound(round, fixtureIndex, side, participantId)
+      : round,
+  );
+}
+
+/** Participant ids appearing in a round (including bye holder). */
+export function participantIdsInRound(round: PairingRound): string[] {
+  const ids = new Set<string>();
+  for (const fixture of round.fixtures) {
+    ids.add(fixture.participantAId);
+    if (!fixture.isBye) ids.add(fixture.participantBId);
+  }
+  return [...ids];
+}
+
+/** Validate organizer-edited schedule rounds before commit. */
+export function validateEditedRounds(
+  rounds: PairingRound[],
+  eligibleParticipantIds: string[],
+): PairingValidationResult {
+  const blockingErrors: PairingValidationIssue[] = [];
+  const warnings: PairingValidationIssue[] = [];
+  const eligible = new Set(eligibleParticipantIds);
+
+  if (rounds.length === 0) {
+    blockingErrors.push({
+      code: "EMPTY_SCHEDULE",
+      message: "Schedule has no rounds",
+    });
+    return { blockingErrors, warnings };
+  }
+
+  let matchupCount = 0;
+
+  for (const round of rounds) {
+    const seenInRound = new Set<string>();
+
+    for (const fixture of round.fixtures) {
+      if (fixture.isBye) {
+        if (!eligible.has(fixture.participantAId)) {
+          blockingErrors.push({
+            code: "INELIGIBLE_PARTICIPANT",
+            message: `${round.label}: bye participant is ineligible`,
+          });
+        }
+        continue;
+      }
+
+      matchupCount++;
+      const { participantAId, participantBId } = fixture;
+
+      if (participantAId === participantBId) {
+        blockingErrors.push({
+          code: "SELF_PAIRING",
+          message: `${round.label}: participant cannot be paired with themselves`,
+        });
+        continue;
+      }
+
+      if (!eligible.has(participantAId) || !eligible.has(participantBId)) {
+        blockingErrors.push({
+          code: "INELIGIBLE_PARTICIPANT",
+          message: `${round.label}: one or both participants are ineligible`,
+        });
+        continue;
+      }
+
+      if (seenInRound.has(participantAId) || seenInRound.has(participantBId)) {
+        blockingErrors.push({
+          code: "DUPLICATE_IN_ROUND",
+          message: `${round.label}: participant appears more than once`,
+        });
+      }
+
+      seenInRound.add(participantAId);
+      seenInRound.add(participantBId);
+    }
+  }
+
+  if (matchupCount === 0) {
+    blockingErrors.push({
+      code: "EMPTY_FIXTURES",
+      message: "Schedule has no matchups",
+    });
+  }
+
+  return { blockingErrors, warnings };
+}
+
 /** Group manual pairings into rounds for preview output. */
 export function manualPairingsToRounds(pairings: ManualPairingInput[]): PairingRound[] {
   const byRound = new Map<number, PairingFixture[]>();

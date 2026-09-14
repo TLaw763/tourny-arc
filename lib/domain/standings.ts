@@ -11,11 +11,19 @@ export type FinalizedMatchFact = {
   gamesDrawn: number;
 };
 
+export const DEFAULT_TIEBREAKER_ORDER = [
+  "matchPoints",
+  "gameDifference",
+  "gamesTotal",
+  "displayName",
+] as const;
+
 export type StandingsRebuildInput = {
   seasonId: string;
   participantIds: string[];
   matches: FinalizedMatchFact[];
   tiebreakerOrder?: string[];
+  participantNames?: Record<string, string>;
   rebuiltAt?: string;
 };
 
@@ -46,10 +54,19 @@ function isDraw(outcome: MatchOutcome): boolean {
   return outcome === "draw";
 }
 
+function gameDifference(stats: ParticipantStats) {
+  return stats.gamesWon - stats.gamesLost;
+}
+
+function gamesTotal(stats: ParticipantStats) {
+  return stats.gamesWon + stats.gamesLost;
+}
+
 function compareParticipants(
   a: ParticipantStats,
   b: ParticipantStats,
   tiebreakerOrder: string[],
+  participantNames: Record<string, string>,
 ): number {
   for (const key of tiebreakerOrder) {
     let diff = 0;
@@ -57,17 +74,27 @@ function compareParticipants(
       case "matchPoints":
         diff = b.matchPoints - a.matchPoints;
         break;
+      case "gameDifference":
+        diff = gameDifference(b) - gameDifference(a);
+        break;
+      case "gamesTotal":
+        diff = gamesTotal(a) - gamesTotal(b);
+        break;
+      case "displayName": {
+        const aName = participantNames[a.participantId] ?? a.participantId;
+        const bName = participantNames[b.participantId] ?? b.participantId;
+        diff = aName.localeCompare(bName, undefined, { sensitivity: "base" });
+        break;
+      }
       case "matchesWon":
         diff = b.matchesWon - a.matchesWon;
         break;
       case "gamesWon":
-        diff = b.tiebreakerValues.gamesWon! - a.tiebreakerValues.gamesWon!;
+        diff = b.gamesWon - a.gamesWon;
         break;
       case "gamesWinPct": {
-        const aPct =
-          a.gamesPlayed === 0 ? 0 : a.tiebreakerValues.gamesWon! / a.gamesPlayed;
-        const bPct =
-          b.gamesPlayed === 0 ? 0 : b.tiebreakerValues.gamesWon! / b.gamesPlayed;
+        const aPct = a.gamesPlayed === 0 ? 0 : a.gamesWon / a.gamesPlayed;
+        const bPct = b.gamesPlayed === 0 ? 0 : b.gamesWon / b.gamesPlayed;
         diff = bPct - aPct;
         break;
       }
@@ -91,7 +118,8 @@ export function rebuildStandings(input: StandingsRebuildInput): Standing[] {
     seasonId,
     participantIds,
     matches,
-    tiebreakerOrder = ["matchPoints", "headToHead", "gamesWon", "gamesWinPct"],
+    tiebreakerOrder = [...DEFAULT_TIEBREAKER_ORDER],
+    participantNames = {},
     rebuiltAt = new Date().toISOString(),
   } = input;
 
@@ -167,7 +195,7 @@ export function rebuildStandings(input: StandingsRebuildInput): Standing[] {
   }
 
   const sorted = [...stats.values()].sort((a, b) =>
-    compareParticipants(a, b, tiebreakerOrder),
+    compareParticipants(a, b, tiebreakerOrder, participantNames),
   );
 
   return sorted.map((row, index) => ({

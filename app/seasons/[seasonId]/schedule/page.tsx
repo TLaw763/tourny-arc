@@ -2,7 +2,6 @@ import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { HomeSchedule } from "@/components/home-schedule";
 import {
-  getPublicCalendarFixtures,
   getPublicScheduleFixtures,
   getPublicSeason,
   getPublicSeasonRounds,
@@ -20,8 +19,7 @@ export default async function SeasonSchedulePage({
   const tournament = await getPublicSeason(seasonId);
   if (!tournament) notFound();
 
-  const [calendarFixtures, listFixtures, rounds] = await Promise.all([
-    mapPublicCalendarFixtures(await getPublicCalendarFixtures(seasonId)),
+  const [listFixtures, rounds] = await Promise.all([
     mapPublicCalendarFixtures(await getPublicScheduleFixtures(seasonId)),
     getPublicSeasonRounds(seasonId),
   ]);
@@ -33,7 +31,6 @@ export default async function SeasonSchedulePage({
       <HomeSchedule
         seasonId={seasonId}
         seasonLabel={seasonLabel}
-        calendarFixtures={calendarFixtures}
         listFixtures={listFixtures}
         rounds={rounds}
       />

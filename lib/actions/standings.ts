@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAuth, isOrganizerForSeason } from "@/lib/auth";
-import { rebuildStandings, type FinalizedMatchFact } from "@/lib/domain";
+import { DEFAULT_TIEBREAKER_ORDER, rebuildStandings, type FinalizedMatchFact } from "@/lib/domain";
 import type { MatchOutcome } from "@/lib/domain/types";
 
 export async function rebuildStandingsAction(seasonId: string) {
@@ -27,6 +27,13 @@ export async function rebuildStandingsAction(seasonId: string) {
     .eq("eligible", true)
     .eq("role", "participant");
   const participantIds = (memberships ?? []).map((m) => m.participant_id);
+
+  const { data: participants } = participantIds.length
+    ? await admin.from("participants").select("id, display_name").in("id", participantIds)
+    : { data: [] as Array<{ id: string; display_name: string }> };
+  const participantNames = Object.fromEntries(
+    (participants ?? []).map((participant) => [participant.id, participant.display_name]),
+  );
 
   const { data: fixtures } = await admin
     .from("fixtures")
@@ -67,12 +74,20 @@ export async function rebuildStandingsAction(seasonId: string) {
     });
   }
 
+  const tiebreakerOrder = [...DEFAULT_TIEBREAKER_ORDER];
+
   const rebuilt = rebuildStandings({
     seasonId,
     participantIds,
     matches: facts,
-    tiebreakerOrder: ruleset.tiebreaker_order as string[],
+    tiebreakerOrder,
+    participantNames,
   });
+
+  await admin
+    .from("rulesets")
+    .update({ tiebreaker_order: tiebreakerOrder })
+    .eq("season_id", seasonId);
 
   await admin.from("standings").delete().eq("season_id", seasonId);
   if (rebuilt.length) {

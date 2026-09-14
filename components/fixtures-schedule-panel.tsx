@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { FixtureCalendarGrid } from "@/components/fixture-calendar-grid";
 import { FixtureMatchupRow } from "@/components/fixture-matchup-row";
 import { groupFixturesByRound } from "@/lib/fixture-display";
 import type { PublicScheduleFixture } from "@/lib/queries";
@@ -36,16 +35,13 @@ export function FixturesSchedulePanel({
   seasonId,
   seasonLabel,
   listFixtures,
-  calendarFixtures,
   rounds,
 }: {
   seasonId: string;
   seasonLabel: string;
   listFixtures: PublicScheduleFixture[];
-  calendarFixtures: PublicScheduleFixture[];
   rounds: RoundItem[];
 }) {
-  const [view, setView] = useState<"list" | "calendar">("list");
   const [resultFilter, setResultFilter] = useState<ResultFilter>("all");
   const [playerId, setPlayerId] = useState("");
   const [openRoundIds, setOpenRoundIds] = useState<Set<string>>(() => {
@@ -105,9 +101,14 @@ export function FixturesSchedulePanel({
               </p>
             )}
           </div>
-          <Link href={`/seasons/${seasonId}`} className="text-sm font-medium">
-            Tournament home
-          </Link>
+          <div className="flex flex-wrap items-center gap-3 text-sm">
+            <Link href={`/calendar?seasonId=${seasonId}`} className="font-medium">
+              Calendar
+            </Link>
+            <Link href={`/seasons/${seasonId}`} className="font-medium">
+              Tournament home
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -162,30 +163,7 @@ export function FixturesSchedulePanel({
           ))}
         </div>
 
-        <div className="view-toggle fixtures-view-toggle" role="tablist" aria-label="Schedule view">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={view === "list"}
-            className={view === "list" ? "view-toggle-btn view-toggle-btn--active" : "view-toggle-btn"}
-            onClick={() => setView("list")}
-          >
-            List
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={view === "calendar"}
-            className={
-              view === "calendar" ? "view-toggle-btn view-toggle-btn--active" : "view-toggle-btn"
-            }
-            onClick={() => setView("calendar")}
-          >
-            Calendar
-          </button>
-        </div>
-
-        {view === "list" && groups.length > 0 && (
+        {groups.length > 0 && (
           <div className="fixtures-round-actions">
             <button type="button" className="fixtures-round-action" onClick={expandAll}>
               Expand all
@@ -197,17 +175,7 @@ export function FixturesSchedulePanel({
         )}
       </div>
 
-      {view === "calendar" ? (
-        calendarFixtures.filter((f): f is PublicScheduleFixture & { confirmed_start_at: string } =>
-          Boolean(f.confirmed_start_at),
-        ).length > 0 ? (
-          <FixtureCalendarGrid fixtures={calendarFixtures} />
-        ) : (
-          <p className="text-[var(--color-text-muted)]">
-            No confirmed fixtures on the calendar yet.
-          </p>
-        )
-      ) : groups.length === 0 ? (
+      {groups.length === 0 ? (
         <p className="text-[var(--color-text-muted)]">No matchups match this filter.</p>
       ) : (
         <div className="fixtures-round-groups space-y-3">

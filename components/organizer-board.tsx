@@ -6,7 +6,10 @@ import { RoundCollapsibleSection } from "@/components/round-collapsible-section"
 import { groupFixturesByRound } from "@/lib/fixture-display";
 import { FixtureSchedulePicker } from "@/components/fixture-schedule-picker";
 import { FixtureStateBadge } from "@/components/fixture-state-badge";
+import { GenerationPreviewEditor } from "@/components/generation-preview-editor";
 import { ManualFixtureBuilder } from "@/components/manual-fixture-builder";
+import { CsvFixtureImportPanel } from "@/components/csv-fixture-import-panel";
+import { MdLeagueImportPanel } from "@/components/md-league-import-panel";
 import { ParticipantUsernameField } from "@/components/participant-username-field";
 import { RosterPlayerRow } from "@/components/roster-player-row";
 import { ResultEntry } from "@/components/result-entry";
@@ -17,6 +20,7 @@ import {
   applyParticipantUsernameFromProfileAction,
   getOrganizerSeasonsAction,
   getSeasonContextAction,
+  updateParticipantPlayerIdAction,
   updateParticipantUsernameAction,
 } from "@/lib/actions/competition";
 import { commitGenerationAction, previewGenerationAction } from "@/lib/actions/generation";
@@ -29,7 +33,7 @@ import {
 import { inviteParticipantAction } from "@/lib/actions/invitations";
 import { correctResultAction, finalizeResultAction, submitResultAction } from "@/lib/actions/results";
 import { rebuildStandingsAction } from "@/lib/actions/standings";
-import type { ManualPairingInput } from "@/lib/domain/pairing";
+import type { ManualPairingInput, PairingRound } from "@/lib/domain/pairing";
 import type { GamePlatform, ScheduleGenerationMode } from "@/lib/domain/types";
 import { isGamePlatform } from "@/lib/game-platform";
 
@@ -37,9 +41,13 @@ type SeasonContext = Awaited<ReturnType<typeof getSeasonContextAction>>;
 
 type OrganizerBoardProps = {
   selectedSeasonId: string;
+  mdLeagueImportEnabled?: boolean;
 };
 
-export function OrganizerBoard({ selectedSeasonId }: OrganizerBoardProps) {
+export function OrganizerBoard({
+  selectedSeasonId,
+  mdLeagueImportEnabled = false,
+}: OrganizerBoardProps) {
   const [seasons, setSeasons] = useState<
     Array<{ id: string; name: string; seasons: Array<{ id: string; name: string }> }>
   >([]);
@@ -51,7 +59,8 @@ export function OrganizerBoard({ selectedSeasonId }: OrganizerBoardProps) {
   const [genMode, setGenMode] = useState<ScheduleGenerationMode>("single_round_robin");
   const [manualPairings, setManualPairings] = useState<ManualPairingInput[]>([]);
   const [previewToken, setPreviewToken] = useState<string | null>(null);
-  const [roundPreview, setRoundPreview] = useState<string>("");
+  const [previewRounds, setPreviewRounds] = useState<PairingRound[] | null>(null);
+  const [previewDirty, setPreviewDirty] = useState(false);
 
   const [newPlayer, setNewPlayer] = useState("");
   const [newPlayerUsername, setNewPlayerUsername] = useState("");
@@ -59,10 +68,12 @@ export function OrganizerBoard({ selectedSeasonId }: OrganizerBoardProps) {
   function participantLabel(p: {
     display_name: string;
     online_client_username?: string | null;
+    online_client_player_id?: string | null;
   }) {
-    return p.online_client_username
-      ? `${p.display_name} (@${p.online_client_username})`
-      : p.display_name;
+    const parts = [p.display_name];
+    if (p.online_client_username) parts.push(p.online_client_username);
+    if (p.online_client_player_id) parts.push(p.online_client_player_id);
+    return parts.join(" · ");
   }
 
   function linkedAccountId(participantId: string) {
@@ -154,25 +165,37 @@ export function OrganizerBoard({ selectedSeasonId }: OrganizerBoardProps) {
       return;
     }
     setPreviewToken(preview.previewToken);
-    setRoundPreview(
-      preview.rounds
-        .map(
-          (r) =>
-            `${r.label}: ${r.fixtures.filter((f) => !f.isBye).length} fixtures`,
-        )
-        .join("\n"),
-    );
+    setPreviewRounds(preview.rounds);
+    setPreviewDirty(false);
     setMessage(`Preview: ${preview.rounds.length} rounds${preview.warnings.length ? " (with warnings)" : ""}`);
   }
 
   async function handleCommitGeneration() {
-    if (!seasonId || !previewToken) return;
+    if (!seasonId || !previewToken || !previewRounds?.length) return;
     const key = crypto.randomUUID();
-    await commitGenerationAction(seasonId, previewToken, key);
+    await commitGenerationAction(
+      seasonId,
+      previewToken,
+      key,
+      previewDirty ? previewRounds : undefined,
+    );
     setPreviewToken(null);
-    setRoundPreview("");
+    setPreviewRounds(null);
+    setPreviewDirty(false);
     await load(seasonId);
     setMessage("Fixtures generated");
+  }
+
+  function handleGenerationModeChange(mode: ScheduleGenerationMode) {
+    setGenMode(mode);
+    setPreviewToken(null);
+    setPreviewRounds(null);
+    setPreviewDirty(false);
+  }
+
+  function handlePreviewRoundsChange(rounds: PairingRound[]) {
+    setPreviewRounds(rounds);
+    setPreviewDirty(true);
   }
 
   async function handleRebuildStandings() {
@@ -278,10 +301,15 @@ export function OrganizerBoard({ selectedSeasonId }: OrganizerBoardProps) {
               participantId={p.id}
               displayName={p.display_name}
               username={p.online_client_username}
+              playerId={p.online_client_player_id}
               linkedAccountId={linkedAccountId(p.id)}
               pendingInviteEmail={pendingInviteEmail(p.id, p.display_name)}
               onSaveUsername={async (participantId, username) => {
                 await updateParticipantUsernameAction(seasonId, participantId, username);
+                await load(seasonId);
+              }}
+              onSavePlayerId={async (participantId, clientPlayerId) => {
+                await updateParticipantPlayerIdAction(seasonId, participantId, clientPlayerId);
                 await load(seasonId);
               }}
               onApplyFromProfile={async (participantId) => {
@@ -303,11 +331,22 @@ export function OrganizerBoard({ selectedSeasonId }: OrganizerBoardProps) {
         />
       )}
 
+      {seasonId && (
+        <OrganizerCollapsibleSection title="Import fixtures" defaultOpen={false}>
+          <div className="space-y-4">
+            <CsvFixtureImportPanel seasonId={seasonId} participants={eligibleParticipants} />
+            {mdLeagueImportEnabled && (
+              <MdLeagueImportPanel seasonId={seasonId} participants={eligibleParticipants} />
+            )}
+          </div>
+        </OrganizerCollapsibleSection>
+      )}
+
       <OrganizerCollapsibleSection title="Generate fixtures" defaultOpen={false}>
         <select
           className="field-select max-w-xs"
           value={genMode}
-          onChange={(e) => setGenMode(e.target.value as ScheduleGenerationMode)}
+          onChange={(e) => handleGenerationModeChange(e.target.value as ScheduleGenerationMode)}
         >
           <option value="single_round_robin">Single round-robin</option>
           <option value="double_round_robin">Double round-robin</option>
@@ -327,13 +366,22 @@ export function OrganizerBoard({ selectedSeasonId }: OrganizerBoardProps) {
             type="button"
             className="btn-primary"
             onClick={handleCommitGeneration}
-            disabled={!previewToken}
+            disabled={!previewToken || !previewRounds?.length}
           >
             Commit generation
           </button>
         </div>
-        {roundPreview && (
-          <pre className="panel-subtle overflow-x-auto p-3 text-xs">{roundPreview}</pre>
+        {previewDirty && (
+          <p className="text-sm text-[var(--color-text-muted)]">
+            Schedule edited — your changes will be used when you commit.
+          </p>
+        )}
+        {previewRounds && previewRounds.length > 0 && (
+          <GenerationPreviewEditor
+            rounds={previewRounds}
+            participants={eligibleParticipants}
+            onChange={handlePreviewRoundsChange}
+          />
         )}
         <button type="button" className="btn-secondary" onClick={handleRebuildStandings}>
           Rebuild standings

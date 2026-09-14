@@ -9,7 +9,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "tsx --test tests/domain/*.test.ts"
+    "test": "tsx --test tests/domain/*.test.ts tests/fixture-import/**/*.test.ts",
+    "md-league:export-csv": "tsx scripts/md-league-to-csv.mts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

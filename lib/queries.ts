@@ -23,6 +23,47 @@ function missingGamePlatformColumn(error: { message?: string } | null) {
   return Boolean(error?.message?.toLowerCase().includes("game_platform"));
 }
 
+function missingOnlineClientPlayerIdColumn(error: { message?: string } | null) {
+  return Boolean(error?.message?.toLowerCase().includes("online_client_player_id"));
+}
+
+const PUBLIC_FIXTURE_PARTICIPANT_FIELDS = "id, display_name, online_client_username";
+
+function buildPublicFixtureSelect(includePlayerId: boolean) {
+  const participantFields = includePlayerId
+    ? `${PUBLIC_FIXTURE_PARTICIPANT_FIELDS}, online_client_player_id`
+    : PUBLIC_FIXTURE_PARTICIPANT_FIELDS;
+  return `
+  id, state, confirmed_start_at, season_id, round_id,
+  participant_a:participants!fixtures_participant_a_id_fkey(${participantFields}),
+  participant_b:participants!fixtures_participant_b_id_fkey(${participantFields}),
+  matches(outcome, points_player_a, points_player_b, games(sequence, outcome)),
+  rounds(id, label, sequence),
+  seasons(name, competitions(name, timezone))
+`;
+}
+
+const PUBLIC_FIXTURE_SELECT = buildPublicFixtureSelect(true);
+const PUBLIC_FIXTURE_SELECT_BASE = buildPublicFixtureSelect(false);
+
+type FixtureQueryResult = {
+  data: unknown[] | null;
+  error: { message?: string } | null;
+};
+
+async function queryPublicFixtures(
+  run: (select: string) => Promise<FixtureQueryResult>,
+): Promise<unknown[]> {
+  const withPlayerId = await run(PUBLIC_FIXTURE_SELECT);
+  if (!withPlayerId.error) return withPlayerId.data ?? [];
+  if (missingOnlineClientPlayerIdColumn(withPlayerId.error)) {
+    const fallback = await run(PUBLIC_FIXTURE_SELECT_BASE);
+    if (fallback.error) throw new Error(fallback.error.message);
+    return fallback.data ?? [];
+  }
+  throw new Error(withPlayerId.error.message);
+}
+
 type PublicSeasonRow = {
   id: string;
   name: string;
@@ -145,18 +186,21 @@ type ParticipantRow = {
   id?: string;
   display_name?: string;
   online_client_username?: string | null;
+  online_client_player_id?: string | null;
 };
 
 function participantRow(value: unknown): {
   id: string;
   display_name: string;
   online_client_username: string | null;
+  online_client_player_id: string | null;
 } {
   const row = (Array.isArray(value) ? value[0] : value) as ParticipantRow | null | undefined;
   return {
     id: row?.id ?? "",
     display_name: row?.display_name ?? "TBD",
     online_client_username: row?.online_client_username ?? null,
+    online_client_player_id: row?.online_client_player_id ?? null,
   };
 }
 
@@ -187,9 +231,11 @@ function mapPublicFixtureRow(f: Record<string, unknown>) {
     participant_a_id: participantA.id,
     participant_a_name: participantA.display_name,
     participant_a_username: participantA.online_client_username,
+    participant_a_player_id: participantA.online_client_player_id,
     participant_b_id: participantB.id,
     participant_b_name: participantB.display_name,
     participant_b_username: participantB.online_client_username,
+    participant_b_player_id: participantB.online_client_player_id,
     match_outcome: matchRow?.outcome ?? null,
     match_games: games,
     round_label: (round as { label?: string } | null)?.label ?? null,
@@ -204,15 +250,6 @@ export function mapPublicCalendarFixtures(
 ) {
   return fixtures.map((f) => mapPublicFixtureRow(f as Record<string, unknown>));
 }
-
-const PUBLIC_FIXTURE_SELECT = `
-  id, state, confirmed_start_at, season_id, round_id,
-  participant_a:participants!fixtures_participant_a_id_fkey(id, display_name, online_client_username),
-  participant_b:participants!fixtures_participant_b_id_fkey(id, display_name, online_client_username),
-  matches(outcome, points_player_a, points_player_b, games(sequence, outcome)),
-  rounds(id, label, sequence),
-  seasons(name, competitions(name, timezone))
-`;
 
 const PUBLIC_SCHEDULE_STATES = [
   "generated",
@@ -253,54 +290,182 @@ export async function getPublicScheduleFixtures(seasonId: string) {
 
   // Service role: RLS may still hide `generated` fixtures until migration 005 is applied.
   const admin = createAdminClient();
-  const { data } = await admin
-    .from("fixtures")
-    .select(PUBLIC_FIXTURE_SELECT)
-    .eq("season_id", seasonId)
-    .eq("is_bye", false)
-    .in("state", [...PUBLIC_SCHEDULE_STATES])
-    .order("created_at");
-  return data ?? [];
+  return queryPublicFixtures(async (select) =>
+    admin
+      .from("fixtures")
+      .select(select)
+      .eq("season_id", seasonId)
+      .eq("is_bye", false)
+      .in("state", [...PUBLIC_SCHEDULE_STATES])
+      .order("created_at"),
+  );
 }
 
 export async function getPublicCalendarFixtures(seasonId?: string) {
   const supabase = await createClient();
-  let query = supabase
-    .from("fixtures")
-    .select(PUBLIC_FIXTURE_SELECT)
-    .eq("is_bye", false)
-    .not("confirmed_start_at", "is", null)
-    .in("state", [
-      "confirmed",
-      "in_progress",
-      "result_pending",
-      "disputed",
-      "finalized",
-      "postponed",
-    ]);
+  return queryPublicFixtures(async (select) => {
+    let query = supabase
+      .from("fixtures")
+      .select(select)
+      .eq("is_bye", false)
+      .not("confirmed_start_at", "is", null)
+      .in("state", [
+        "confirmed",
+        "in_progress",
+        "result_pending",
+        "disputed",
+        "finalized",
+        "postponed",
+      ]);
 
-  if (seasonId) query = query.eq("season_id", seasonId);
-  const { data } = await query.order("confirmed_start_at");
-  return data ?? [];
+    if (seasonId) query = query.eq("season_id", seasonId);
+    return query.order("confirmed_start_at");
+  });
+}
+
+function buildPublicFixtureDetailSelect(includePlayerId: boolean) {
+  const participantFields = includePlayerId
+    ? `${PUBLIC_FIXTURE_PARTICIPANT_FIELDS}, online_client_player_id`
+    : PUBLIC_FIXTURE_PARTICIPANT_FIELDS;
+  return `
+      *,
+      participant_a:participants!fixtures_participant_a_id_fkey(${participantFields}),
+      participant_b:participants!fixtures_participant_b_id_fkey(${participantFields}),
+      rounds(id, label, sequence),
+      seasons(name, competitions(name, visibility, timezone)),
+      stream_links(url, label, visibility)
+    `;
+}
+
+type ParticipantEmbed = {
+  id: string;
+  display_name: string;
+  online_client_username?: string | null;
+  online_client_player_id?: string | null;
+};
+
+function participantEmbed(value: unknown): ParticipantEmbed | null {
+  const row = (Array.isArray(value) ? value[0] : value) as ParticipantEmbed | null | undefined;
+  if (!row?.id) return null;
+  return row;
+}
+
+export type FixtureMatchupPlayerContext = {
+  participant: ParticipantEmbed;
+  standing: EnrichedStandingRow | null;
+  form: FormResult[];
+  seasonTotalMatches: number;
+};
+
+export type PublicFixtureMatchup = {
+  fixture: {
+    id: string;
+    season_id: string;
+    state: string;
+    confirmed_start_at: string | null;
+  };
+  match: {
+    outcome?: string | null;
+    points_player_a?: number;
+    points_player_b?: number;
+    games?: Array<{ sequence: number; outcome: string }>;
+  } | null;
+  tournament: Awaited<ReturnType<typeof getPublicSeason>>;
+  roundLabel: string | null;
+  playerA: FixtureMatchupPlayerContext;
+  playerB: FixtureMatchupPlayerContext;
+  streams: Array<{ url: string; label: string | null }>;
+};
+
+export async function getPublicFixtureMatchup(fixtureId: string): Promise<PublicFixtureMatchup | null> {
+  const base = await getPublicFixture(fixtureId);
+  if (!base) return null;
+
+  const { fixture: rawFixture, match } = base;
+  const fixtureRecord = rawFixture as Record<string, unknown> & {
+    id: string;
+    season_id: string;
+    state: string;
+    confirmed_start_at: string | null;
+    participant_a: unknown;
+    participant_b: unknown;
+    rounds?: unknown;
+    stream_links?: unknown;
+  };
+
+  const pa = participantEmbed(fixtureRecord.participant_a);
+  const pb = participantEmbed(fixtureRecord.participant_b);
+  if (!pa || !pb) return null;
+
+  const seasonId = fixtureRecord.season_id;
+  const [enrichedStandings, context, tournament] = await Promise.all([
+    getPublicStandingsEnriched(seasonId),
+    getPublicSeasonFormContext(seasonId),
+    getPublicSeason(seasonId),
+  ]);
+
+  function buildPlayer(participant: ParticipantEmbed): FixtureMatchupPlayerContext {
+    const standing = enrichedStandings.find((s) => s.participant_id === participant.id) ?? null;
+    return {
+      participant,
+      standing,
+      form: context.formByParticipant.get(participant.id) ?? [],
+      seasonTotalMatches:
+        context.seasonTotals.get(participant.id) ?? standing?.matches_played ?? 0,
+    };
+  }
+
+  const round = Array.isArray(fixtureRecord.rounds)
+    ? fixtureRecord.rounds[0]
+    : fixtureRecord.rounds;
+  const roundLabel = (round as { label?: string } | null)?.label ?? null;
+
+  return {
+    fixture: {
+      id: fixtureRecord.id,
+      season_id: fixtureRecord.season_id,
+      state: fixtureRecord.state,
+      confirmed_start_at: fixtureRecord.confirmed_start_at,
+    },
+    match: match
+      ? {
+          outcome: match.outcome as string | null | undefined,
+          points_player_a: match.points_player_a as number | undefined,
+          points_player_b: match.points_player_b as number | undefined,
+          games: (match.games as Array<{ sequence: number; outcome: string }> | undefined) ?? [],
+        }
+      : null,
+    tournament,
+    roundLabel,
+    playerA: buildPlayer(pa),
+    playerB: buildPlayer(pb),
+    streams: (fixtureRecord.stream_links as Array<{ url: string; label: string | null }>) ?? [],
+  };
 }
 
 export async function getPublicFixture(fixtureId: string) {
   const admin = createAdminClient();
-  const { data: fixture } = await admin
+  const withPlayerId = await admin
     .from("fixtures")
-    .select(
-      `
-      *,
-      participant_a:participants!fixtures_participant_a_id_fkey(id, display_name, online_client_username),
-      participant_b:participants!fixtures_participant_b_id_fkey(id, display_name, online_client_username),
-      seasons(name, competitions(name, visibility, timezone)),
-      stream_links(url, label, visibility)
-    `,
-    )
+    .select(buildPublicFixtureDetailSelect(true))
     .eq("id", fixtureId)
     .single();
 
-  if (!fixture) return null;
+  const fixtureResult =
+    withPlayerId.error && missingOnlineClientPlayerIdColumn(withPlayerId.error)
+      ? await admin
+          .from("fixtures")
+          .select(buildPublicFixtureDetailSelect(false))
+          .eq("id", fixtureId)
+          .single()
+      : withPlayerId;
+
+  if (fixtureResult.error || !fixtureResult.data) return null;
+  const fixture = fixtureResult.data as unknown as Record<string, unknown> & {
+    season_id: string;
+    state: string;
+    confirmed_start_at: string | null;
+  };
   const competition = Array.isArray(fixture.seasons)
     ? (fixture.seasons[0] as { competitions?: { visibility?: string } })?.competitions
     : (fixture.seasons as { competitions?: { visibility?: string } | { visibility?: string }[] })
@@ -325,21 +490,23 @@ export async function getPublicUpcomingFixtures(seasonId: string, limit = 5) {
   if (!(await isPublicSeason(seasonId))) return [];
 
   const admin = createAdminClient();
-  const { data } = await admin
-    .from("fixtures")
-    .select(PUBLIC_FIXTURE_SELECT)
-    .eq("season_id", seasonId)
-    .eq("is_bye", false)
-    .not("confirmed_start_at", "is", null)
-    .in("state", ["confirmed", "in_progress", "postponed"])
-    .order("confirmed_start_at", { ascending: true });
+  const data = await queryPublicFixtures(async (select) =>
+    admin
+      .from("fixtures")
+      .select(select)
+      .eq("season_id", seasonId)
+      .eq("is_bye", false)
+      .not("confirmed_start_at", "is", null)
+      .in("state", ["confirmed", "in_progress", "postponed"])
+      .order("confirmed_start_at", { ascending: true }),
+  );
 
   const now = Date.now();
-  return (data ?? [])
+  return (data as Array<{ state: string; confirmed_start_at: string | null }>)
     .filter(
       (f) =>
         f.state === "in_progress" ||
-        new Date(f.confirmed_start_at as string).getTime() >= now,
+        (f.confirmed_start_at && new Date(f.confirmed_start_at).getTime() >= now),
     )
     .slice(0, limit);
 }
@@ -422,16 +589,18 @@ export async function getPublicPlayerProfile(seasonId: string, participantId: st
       : null;
 
   const now = Date.now();
-  const { data: upcomingRaw } = await admin
-    .from("fixtures")
-    .select(PUBLIC_FIXTURE_SELECT)
-    .eq("season_id", seasonId)
-    .eq("is_bye", false)
-    .not("confirmed_start_at", "is", null)
-    .in("state", ["confirmed", "in_progress", "postponed"])
-    .or(`participant_a_id.eq.${participantId},participant_b_id.eq.${participantId}`)
-    .order("confirmed_start_at", { ascending: true })
-    .limit(5);
+  const upcomingRaw = await queryPublicFixtures(async (select) =>
+    admin
+      .from("fixtures")
+      .select(select)
+      .eq("season_id", seasonId)
+      .eq("is_bye", false)
+      .not("confirmed_start_at", "is", null)
+      .in("state", ["confirmed", "in_progress", "postponed"])
+      .or(`participant_a_id.eq.${participantId},participant_b_id.eq.${participantId}`)
+      .order("confirmed_start_at", { ascending: true })
+      .limit(5),
+  );
 
   const upcoming = mapPublicCalendarFixtures(upcomingRaw ?? [])
     .filter(

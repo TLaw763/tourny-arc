@@ -79,6 +79,7 @@ export async function submitResultAction(fixtureId: string, games: ScoringGame[]
 
   revalidatePath("/my-fixtures");
   revalidatePath("/organizer");
+  revalidatePath(`/fixtures/${fixtureId}`);
 }
 
 export async function finalizeResultAction(fixtureId: string) {
@@ -120,6 +121,7 @@ export async function finalizeResultAction(fixtureId: string) {
   revalidatePath("/standings");
   revalidatePath("/organizer");
   revalidatePath("/my-fixtures");
+  revalidatePath(`/fixtures/${fixtureId}`);
 }
 
 export async function correctResultAction(fixtureId: string, games: ScoringGame[]) {
@@ -185,4 +187,5 @@ export async function correctResultAction(fixtureId: string, games: ScoringGame[
 
   revalidatePath("/standings");
   revalidatePath("/organizer");
+  revalidatePath(`/fixtures/${fixtureId}`);
 }

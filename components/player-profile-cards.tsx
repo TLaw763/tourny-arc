@@ -46,6 +46,8 @@ export function PlayerProfileCards({
   seasonTotalMatches: number;
   upcoming: UpcomingFixture[];
 }) {
+  const matchDiff = standing ? standing.matches_won - standing.matches_lost : 0;
+
   return (
     <div className="player-profile-cards">
       <section className="player-profile-card panel">
@@ -90,20 +92,16 @@ export function PlayerProfileCards({
               />
               <dl className="player-form-stats">
                 <div>
-                  <dt>Games won</dt>
-                  <dd>{standing.games_won}</dd>
+                  <dt>Matches won</dt>
+                  <dd>{standing.matches_won}</dd>
                 </div>
                 <div>
-                  <dt>Games lost</dt>
-                  <dd>{standing.games_lost}</dd>
+                  <dt>Matches lost</dt>
+                  <dd>{standing.matches_lost}</dd>
                 </div>
                 <div>
-                  <dt>Game diff</dt>
-                  <dd>
-                    {standing.game_difference > 0
-                      ? `+${standing.game_difference}`
-                      : standing.game_difference}
-                  </dd>
+                  <dt>Match diff</dt>
+                  <dd>{matchDiff > 0 ? `+${matchDiff}` : matchDiff}</dd>
                 </div>
               </dl>
             </>

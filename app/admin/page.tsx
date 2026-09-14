@@ -1,8 +1,11 @@
 import { redirect } from "next/navigation";
 import { AdminBanlistPanel } from "@/components/admin-banlist-panel";
+import { AdminClearFixturesPanel } from "@/components/admin-clear-fixtures-panel";
 import { getReferenceBanlistMetaAction } from "@/lib/actions/admin-banlist";
+import { getSeasonFixtureSummaryAction } from "@/lib/actions/admin-fixtures";
 import { getSession } from "@/lib/auth";
 import { isSiteAdminEmail } from "@/lib/auth-admin";
+import { getSelectedSeasonId } from "@/lib/selected-season";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +16,10 @@ export default async function AdminPage() {
   }
 
   const meta = await getReferenceBanlistMetaAction();
+  const selectedSeasonId = await getSelectedSeasonId();
+  const fixtureSummary = selectedSeasonId
+    ? await getSeasonFixtureSummaryAction(selectedSeasonId)
+    : null;
 
   return (
     <div className="space-y-6">
@@ -25,6 +32,10 @@ export default async function AdminPage() {
 
       <section className="panel p-4">
         <AdminBanlistPanel initialMeta={meta} />
+      </section>
+
+      <section className="panel p-4">
+        <AdminClearFixturesPanel summary={fixtureSummary} />
       </section>
     </div>
   );

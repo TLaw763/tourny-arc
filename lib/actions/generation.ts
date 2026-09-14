@@ -7,8 +7,10 @@ import { newId } from "@/lib/db/ids";
 import {
   buildGenerationPreview,
   normalizePairingRounds,
+  validateEditedRounds,
   verifyPreviewToken,
   type ManualPairingInput,
+  type PairingRound,
 } from "@/lib/domain";
 import type { ScheduleGenerationMode } from "@/lib/domain/types";
 
@@ -55,6 +57,7 @@ export async function commitGenerationAction(
   seasonId: string,
   previewToken: string,
   idempotencyKey: string,
+  editedRounds?: PairingRound[],
 ) {
   const session = await requireAuth();
   if (!(await isOrganizerForSeason(session.userId, seasonId))) {
@@ -88,8 +91,17 @@ export async function commitGenerationAction(
   }
 
   const mode = cached.mode as ScheduleGenerationMode;
-  const rounds = normalizePairingRounds(cached.rounds as unknown[]);
-  if (!verifyPreviewToken(previewToken, { rounds, mode })) {
+  let rounds = normalizePairingRounds(cached.rounds as unknown[]);
+
+  if (editedRounds?.length) {
+    const normalized = normalizePairingRounds(editedRounds as unknown[]);
+    const participantIds = await getEligibleParticipantIds(seasonId);
+    const validation = validateEditedRounds(normalized, participantIds);
+    if (validation.blockingErrors.length) {
+      throw new Error(validation.blockingErrors.map((e) => e.message).join("; "));
+    }
+    rounds = normalized;
+  } else if (!verifyPreviewToken(previewToken, { rounds, mode })) {
     throw new Error("Preview token mismatch");
   }
 

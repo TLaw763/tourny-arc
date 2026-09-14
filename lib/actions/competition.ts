@@ -93,7 +93,7 @@ export async function createCompetitionWizardAction(body: CreateCompetitionWizar
     match_points_draw: 1,
     match_points_loss: 0,
     schedule_generation_mode: leagueMode,
-    tiebreaker_order: ["matchPoints", "headToHead", "gamesWon"],
+    tiebreaker_order: ["matchPoints", "gameDifference", "gamesTotal", "displayName"],
     version: 1,
     created_at: now,
   });
@@ -304,6 +304,41 @@ export async function updateParticipantUsernameAction(
     .eq("competition_id", season.competition_id);
 
   revalidatePath("/organizer");
+  revalidatePath("/fixtures");
+  revalidatePath("/calendar");
+}
+
+export async function updateParticipantPlayerIdAction(
+  seasonId: string,
+  participantId: string,
+  onlineClientPlayerId: string,
+) {
+  const session = await requireAuth();
+  if (!(await isOrganizerForSeason(session.userId, seasonId))) {
+    throw new Error("Forbidden");
+  }
+
+  const admin = createAdminClient();
+  const { data: season } = await admin
+    .from("seasons")
+    .select("competition_id")
+    .eq("id", seasonId)
+    .single();
+  if (!season) throw new Error("Season not found");
+
+  const playerId = onlineClientPlayerId.trim();
+  await admin
+    .from("participants")
+    .update({
+      online_client_player_id: playerId ? sanitizeDisplayText(playerId, 64) : null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", participantId)
+    .eq("competition_id", season.competition_id);
+
+  revalidatePath("/organizer");
+  revalidatePath("/fixtures");
+  revalidatePath("/calendar");
 }
 
 export async function applyParticipantUsernameFromProfileAction(

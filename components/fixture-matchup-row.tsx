@@ -7,6 +7,7 @@ function PlayerSide({
   seasonId,
   name,
   username,
+  playerId,
   align,
   isWinner,
   isLoser,
@@ -16,6 +17,7 @@ function PlayerSide({
   seasonId: string;
   name: string;
   username: string | null;
+  playerId: string | null;
   align: "left" | "right";
   isWinner: boolean;
   isLoser: boolean;
@@ -40,6 +42,7 @@ function PlayerSide({
         {wonLabel && <span className="fixture-matchup-won">{wonLabel}</span>}
       </div>
       {username && <span className="fixture-matchup-username">{username}</span>}
+      {playerId && <span className="fixture-matchup-player-id">{playerId}</span>}
     </Link>
   );
 }
@@ -64,6 +67,7 @@ export function FixtureMatchupRow({
         seasonId={seasonId}
         name={fixture.participant_a_name}
         username={fixture.participant_a_username}
+        playerId={fixture.participant_a_player_id}
         align="left"
         isWinner={aWinner}
         isLoser={aLoser}
@@ -77,6 +81,7 @@ export function FixtureMatchupRow({
         seasonId={seasonId}
         name={fixture.participant_b_name}
         username={fixture.participant_b_username}
+        playerId={fixture.participant_b_player_id}
         align="right"
         isWinner={bWinner}
         isLoser={bLoser}

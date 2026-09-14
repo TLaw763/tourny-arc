@@ -48,7 +48,7 @@ export default async function PlayerPage({
           )}
           {participant.online_client_username && (
             <p className="text-sm text-[var(--color-text-muted)]">
-              @{participant.online_client_username}
+              {participant.online_client_username}
             </p>
           )}
         </div>
