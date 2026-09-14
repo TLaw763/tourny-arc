@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isEnvOrganizerEmail } from "@/lib/auth-organizer";
 import { isOrganizerForSeason, requireAuth } from "@/lib/auth";
 import { newId } from "@/lib/db/ids";
 import {
@@ -378,9 +379,19 @@ export async function getOrganizerSeasonsAction() {
   const session = await requireAuth();
   const admin = createAdminClient();
 
+  const select = "id, name, visibility, status, timezone, seasons(id, name, status)";
+
+  if (isEnvOrganizerEmail(session.email)) {
+    const { data: all } = await admin
+      .from("competitions")
+      .select(select)
+      .order("created_at", { ascending: false });
+    return all ?? [];
+  }
+
   const { data: owned } = await admin
     .from("competitions")
-    .select("id, name, visibility, status, timezone, seasons(id, name, status)")
+    .select(select)
     .eq("owner_customer_account_id", session.userId);
 
   return owned ?? [];

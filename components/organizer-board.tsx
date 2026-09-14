@@ -231,7 +231,7 @@ export function OrganizerBoard({
     return (
       <div className="panel space-y-4 p-6">
         <h1 className="text-2xl font-bold">Organizer board</h1>
-        <p>You can only manage tournaments you organize. Pick one of yours from the home page.</p>
+        <p>You do not have organizer access to this tournament. Pick one you manage from the home page.</p>
         <Link href="/" className="btn-primary inline-block no-underline">
           Choose tournament
         </Link>

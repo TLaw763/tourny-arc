@@ -1,3 +1,4 @@
+import { isEnvOrganizerEmail } from "@/lib/auth-organizer";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -18,6 +19,14 @@ export async function requireAuth() {
 
 export async function isOrganizerForSeason(userId: string, seasonId: string) {
   const admin = createAdminClient();
+
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("email")
+    .eq("id", userId)
+    .maybeSingle();
+  if (isEnvOrganizerEmail(profile?.email)) return true;
+
   const { data: season } = await admin
     .from("seasons")
     .select("competition_id")
