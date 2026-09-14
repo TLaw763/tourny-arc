@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import { SiteHeader } from "@/components/site-header";
 import { ThemeScript } from "@/components/theme-script";
-import { APP_DESCRIPTION, APP_NAME, APP_URL } from "@/lib/branding";
+import { APP_DESCRIPTION, APP_NAME, resolveAppUrl } from "@/lib/branding";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? APP_URL),
+  metadataBase: new URL(resolveAppUrl()),
   title: {
     default: `${APP_NAME} — League Management`,
     template: `%s · ${APP_NAME}`,

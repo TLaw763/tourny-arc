@@ -204,10 +204,6 @@ function participantRow(value: unknown): {
   };
 }
 
-function participantName(value: unknown): string {
-  return participantRow(value).display_name;
-}
-
 function mapPublicFixtureRow(f: Record<string, unknown>) {
   const match = Array.isArray(f.matches) ? f.matches[0] : f.matches;
   const round = Array.isArray(f.rounds) ? f.rounds[0] : f.rounds;

@@ -1,10 +1,15 @@
+import { resolveAppUrl } from "@/lib/branding";
 import { z } from "zod";
 
 const envSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
-  NEXT_PUBLIC_APP_URL: z.string().url().optional(),
+  NEXT_PUBLIC_APP_URL: z
+    .string()
+    .optional()
+    .transform((value) => (value?.trim() ? resolveAppUrl(value) : undefined))
+    .pipe(z.string().url().optional()),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -47,8 +52,8 @@ function normalizeLocalAppUrl(url: string): string {
 }
 
 export function getAppUrl(): string {
-  if (getEnv().NEXT_PUBLIC_APP_URL) {
-    return normalizeLocalAppUrl(getEnv().NEXT_PUBLIC_APP_URL!);
+  if (process.env.NEXT_PUBLIC_APP_URL?.trim()) {
+    return normalizeLocalAppUrl(resolveAppUrl());
   }
   if (process.env.NODE_ENV === "production") {
     return "https://tornament.enigmic.co.za";
