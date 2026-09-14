@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAuth, isOrganizerForSeason, getMembershipForUser } from "@/lib/auth";
+import { getOpenMatchForFixture, getPrimaryMatchForFixture } from "@/lib/db/fixture-matches";
 import { newId } from "@/lib/db/ids";
 import {
   advanceFixtureToResultPending,
@@ -22,12 +23,7 @@ export async function submitResultAction(fixtureId: string, games: ScoringGame[]
   const isOrganizer = await isOrganizerForSeason(session.userId, fixture.season_id);
   if (!membership && !isOrganizer) throw new Error("Forbidden");
 
-  const { data: match } = await admin
-    .from("matches")
-    .select("*")
-    .eq("fixture_id", fixtureId)
-    .is("outcome", null)
-    .maybeSingle();
+  const match = await getOpenMatchForFixture(admin, fixtureId);
   if (!match) throw new Error("No open match");
 
   const score = computeMatchOutcome(games);
@@ -96,11 +92,7 @@ export async function finalizeResultAction(fixtureId: string) {
   const membership = await getMembershipForUser(session.userId, fixture.season_id);
   if (!isOrganizer && !membership) throw new Error("Forbidden");
 
-  const { data: match } = await admin
-    .from("matches")
-    .select("id")
-    .eq("fixture_id", fixtureId)
-    .maybeSingle();
+  const match = await getPrimaryMatchForFixture(admin, fixtureId);
   if (!match) throw new Error("No match");
 
   const { data: submission } = await admin
@@ -140,11 +132,7 @@ export async function correctResultAction(fixtureId: string, games: ScoringGame[
     throw new Error("Forbidden");
   }
 
-  const { data: match } = await admin
-    .from("matches")
-    .select("*")
-    .eq("fixture_id", fixtureId)
-    .maybeSingle();
+  const match = await getPrimaryMatchForFixture(admin, fixtureId);
   if (!match) throw new Error("No match");
 
   const score = computeMatchOutcome(games);

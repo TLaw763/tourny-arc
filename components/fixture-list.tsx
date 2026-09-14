@@ -1,20 +1,25 @@
-import { FixturesByRoundList, type FixtureRoundListItem } from "@/components/fixtures-by-round-list";
+import { FixturesByRoundList } from "@/components/fixtures-by-round-list";
+import type { PublicScheduleFixture } from "@/lib/queries";
 
-export type FixtureListItem = FixtureRoundListItem & {
-  round_label?: string | null;
-  round_sequence?: number | null;
-};
+export type FixtureListItem = PublicScheduleFixture;
 
 export function FixtureList({
+  seasonId,
   fixtures,
   rounds,
   unscheduledOnly = false,
 }: {
+  seasonId: string;
   fixtures: FixtureListItem[];
   rounds: Array<{ id: string; label: string; sequence: number }>;
   unscheduledOnly?: boolean;
 }) {
   return (
-    <FixturesByRoundList rounds={rounds} fixtures={fixtures} unscheduledOnly={unscheduledOnly} />
+    <FixturesByRoundList
+      seasonId={seasonId}
+      rounds={rounds}
+      fixtures={fixtures}
+      unscheduledOnly={unscheduledOnly}
+    />
   );
 }

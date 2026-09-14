@@ -5,5 +5,6 @@ export function pathRequiresSelectedTournament(pathname: string): boolean {
   }
   if (pathname.startsWith("/players/")) return true;
   if (/^\/fixtures\/[^/]+/.test(pathname)) return true;
+  if (pathname === "/organizer") return true;
   return false;
 }

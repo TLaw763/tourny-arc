@@ -5,7 +5,7 @@ import { OrganizerSectionHeader } from "@/components/organizer-section-header";
 
 type OrganizerCollapsibleSectionProps = {
   title: string;
-  onUpdate: () => void | Promise<void>;
+  onUpdate?: () => void | Promise<void>;
   disabled?: boolean;
   loading?: boolean;
   hint?: string;
@@ -25,14 +25,18 @@ export function OrganizerCollapsibleSection({
   return (
     <details className="organizer-collapsible panel" open={defaultOpen}>
       <summary className="organizer-collapsible-summary">
-        <OrganizerSectionHeader
-          title={title}
-          onUpdate={onUpdate}
-          disabled={disabled}
-          loading={loading}
-          hint={hint}
-          stopToggle
-        />
+        {onUpdate ? (
+          <OrganizerSectionHeader
+            title={title}
+            onUpdate={onUpdate}
+            disabled={disabled}
+            loading={loading}
+            hint={hint}
+            stopToggle
+          />
+        ) : (
+          <h2 className="organizer-collapsible-title">{title}</h2>
+        )}
       </summary>
       <div className="organizer-collapsible-body">{children}</div>
     </details>

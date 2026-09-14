@@ -141,36 +141,75 @@ export async function getPublicSeasonBanList(seasonId: string): Promise<SeasonBa
   }));
 }
 
-function participantName(value: unknown): string {
-  if (Array.isArray(value)) return (value[0] as { display_name?: string } | undefined)?.display_name ?? "TBD";
-  return (value as { display_name?: string } | null)?.display_name ?? "TBD";
+type ParticipantRow = {
+  id?: string;
+  display_name?: string;
+  online_client_username?: string | null;
+};
+
+function participantRow(value: unknown): {
+  id: string;
+  display_name: string;
+  online_client_username: string | null;
+} {
+  const row = (Array.isArray(value) ? value[0] : value) as ParticipantRow | null | undefined;
+  return {
+    id: row?.id ?? "",
+    display_name: row?.display_name ?? "TBD",
+    online_client_username: row?.online_client_username ?? null,
+  };
 }
+
+function participantName(value: unknown): string {
+  return participantRow(value).display_name;
+}
+
+function mapPublicFixtureRow(f: Record<string, unknown>) {
+  const match = Array.isArray(f.matches) ? f.matches[0] : f.matches;
+  const round = Array.isArray(f.rounds) ? f.rounds[0] : f.rounds;
+  const participantA = participantRow(f.participant_a);
+  const participantB = participantRow(f.participant_b);
+  const matchRow = match as {
+    outcome?: string | null;
+    games?: Array<{ sequence: number; outcome: string }> | { sequence: number; outcome: string };
+  } | null;
+  const games = matchRow?.games
+    ? Array.isArray(matchRow.games)
+      ? matchRow.games
+      : [matchRow.games]
+    : [];
+
+  return {
+    id: f.id as string,
+    round_id: f.round_id as string | null,
+    state: f.state as string,
+    confirmed_start_at: f.confirmed_start_at as string | null,
+    participant_a_id: participantA.id,
+    participant_a_name: participantA.display_name,
+    participant_a_username: participantA.online_client_username,
+    participant_b_id: participantB.id,
+    participant_b_name: participantB.display_name,
+    participant_b_username: participantB.online_client_username,
+    match_outcome: matchRow?.outcome ?? null,
+    match_games: games,
+    round_label: (round as { label?: string } | null)?.label ?? null,
+    round_sequence: (round as { sequence?: number } | null)?.sequence ?? null,
+  };
+}
+
+export type PublicScheduleFixture = ReturnType<typeof mapPublicFixtureRow>;
 
 export function mapPublicCalendarFixtures(
   fixtures: Awaited<ReturnType<typeof getPublicCalendarFixtures>>,
 ) {
-  return fixtures.map((f) => {
-    const match = Array.isArray(f.matches) ? f.matches[0] : f.matches;
-    const round = Array.isArray(f.rounds) ? f.rounds[0] : f.rounds;
-    return {
-      id: f.id,
-      round_id: f.round_id as string | null,
-      state: f.state as string,
-      confirmed_start_at: f.confirmed_start_at as string | null,
-      participant_a_name: participantName(f.participant_a),
-      participant_b_name: participantName(f.participant_b),
-      match_outcome: (match as { outcome?: string | null } | null)?.outcome ?? null,
-      round_label: (round as { label?: string } | null)?.label ?? null,
-      round_sequence: (round as { sequence?: number } | null)?.sequence ?? null,
-    };
-  });
+  return fixtures.map((f) => mapPublicFixtureRow(f as Record<string, unknown>));
 }
 
 const PUBLIC_FIXTURE_SELECT = `
   id, state, confirmed_start_at, season_id, round_id,
-  participant_a:participants!fixtures_participant_a_id_fkey(display_name),
-  participant_b:participants!fixtures_participant_b_id_fkey(display_name),
-  matches(outcome),
+  participant_a:participants!fixtures_participant_a_id_fkey(id, display_name, online_client_username),
+  participant_b:participants!fixtures_participant_b_id_fkey(id, display_name, online_client_username),
+  matches(outcome, points_player_a, points_player_b, games(sequence, outcome)),
   rounds(id, label, sequence),
   seasons(name, competitions(name, timezone))
 `;

@@ -53,8 +53,6 @@ export default async function SeasonHomePage({
           </Link>
         </div>
 
-        <TournamentBanListDisplay entries={banList} id="ban-list" />
-
         <div className="tournament-page-columns">
           <section className="panel-subtle tournament-page-column">
             <h2 className="border-b border-[var(--color-border)] p-3 text-lg font-semibold">
@@ -73,6 +71,8 @@ export default async function SeasonHomePage({
             </div>
           </section>
         </div>
+
+        <TournamentBanListDisplay entries={banList} id="ban-list" />
       </div>
     </div>
   );

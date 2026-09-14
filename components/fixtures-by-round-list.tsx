@@ -1,18 +1,11 @@
 "use client";
 
-import Link from "next/link";
-import { FixtureStateBadge } from "@/components/fixture-state-badge";
+import { FixtureMatchupRow } from "@/components/fixture-matchup-row";
 import { RoundCollapsibleSection } from "@/components/round-collapsible-section";
 import { groupFixturesByRound } from "@/lib/fixture-display";
+import type { PublicScheduleFixture } from "@/lib/queries";
 
-export type FixtureRoundListItem = {
-  id: string;
-  round_id?: string | null;
-  state: string;
-  confirmed_start_at: string | null;
-  participant_a_name: string;
-  participant_b_name: string;
-  match_outcome?: string | null;
+export type FixtureRoundListItem = PublicScheduleFixture & {
   is_bye?: boolean;
 };
 
@@ -23,10 +16,12 @@ export type RoundListItem = {
 };
 
 export function FixturesByRoundList({
+  seasonId,
   rounds,
   fixtures,
   unscheduledOnly = false,
 }: {
+  seasonId: string;
   rounds: RoundListItem[];
   fixtures: FixtureRoundListItem[];
   /** When true, only rounds with no scheduled fixtures (calendar companion). */
@@ -63,34 +58,11 @@ export function FixturesByRoundList({
                 Matchups for this round have not been generated yet.
               </p>
             ) : (
-              <ul className="fixture-round-list space-y-2">
-                {roundFixtures.map((fixture) => {
-                  const start = fixture.confirmed_start_at
-                    ? new Date(fixture.confirmed_start_at).toLocaleString()
-                    : null;
-                  return (
-                    <li key={fixture.id} className="fixture-round-list-item panel p-3">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="min-w-0 space-y-1">
-                          <Link href={`/fixtures/${fixture.id}`} className="font-medium">
-                            {fixture.participant_a_name} vs {fixture.participant_b_name}
-                          </Link>
-                          {start && (
-                            <p className="text-xs text-[var(--color-text-muted)]">{start}</p>
-                          )}
-                        </div>
-                        <FixtureStateBadge
-                          state={fixture.state}
-                          confirmedStartAt={fixture.confirmed_start_at}
-                          matchOutcome={fixture.match_outcome}
-                          participantAName={fixture.participant_a_name}
-                          participantBName={fixture.participant_b_name}
-                        />
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
+              <div className="fixtures-round-matchups">
+                {roundFixtures.map((fixture) => (
+                  <FixtureMatchupRow key={fixture.id} fixture={fixture} seasonId={seasonId} />
+                ))}
+              </div>
             )}
           </RoundCollapsibleSection>
         );

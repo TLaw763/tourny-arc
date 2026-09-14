@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAuth, isOrganizerForSeason, getMembershipForUser } from "@/lib/auth";
+import { ensureFixtureMatches } from "@/lib/db/fixture-matches";
 import { newId } from "@/lib/db/ids";
 import {
   canTransitionFixture,
@@ -69,6 +70,8 @@ export async function confirmScheduleAction(fixtureId: string, confirmedStartAt:
       updated_at: now,
     })
     .eq("id", fixtureId);
+
+  await ensureFixtureMatches(admin, fixtureId);
 
   revalidatePath("/organizer");
   revalidatePath("/calendar");
