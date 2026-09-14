@@ -20,6 +20,7 @@ import type {
   CreateCompetitionWizardRequest,
   FormatPlanPreview,
   GamePlatform,
+  UpdateTournamentDetailsInput,
 } from "@/lib/domain/types";
 import { isGamePlatform } from "@/lib/game-platform";
 
@@ -229,6 +230,103 @@ export async function updateCompetitionGamePlatformAction(
   revalidatePath(`/seasons/${seasonId}/ban-list`);
 }
 
+export async function updateTournamentDetailsAction(
+  seasonId: string,
+  input: UpdateTournamentDetailsInput,
+) {
+  const session = await requireAuth();
+  if (!(await isOrganizerForSeason(session.userId, seasonId))) {
+    throw new Error("Forbidden");
+  }
+
+  const competitionName = sanitizeDisplayText(input.competitionName.trim(), 200);
+  const seasonName = sanitizeDisplayText(input.seasonName.trim(), 200);
+  const timezone = sanitizeDisplayText(input.timezone.trim(), 64);
+  if (!competitionName) throw new Error("Competition name is required");
+  if (!seasonName) throw new Error("Season name is required");
+  if (!timezone) throw new Error("Timezone is required");
+
+  const startsAt = input.startsAt?.trim() || null;
+  const endsAt = input.endsAt?.trim() || null;
+  if (startsAt && endsAt && new Date(startsAt).getTime() > new Date(endsAt).getTime()) {
+    throw new Error("Season start must be before end");
+  }
+
+  const admin = createAdminClient();
+  const { data: season } = await admin
+    .from("seasons")
+    .select("competition_id")
+    .eq("id", seasonId)
+    .single();
+  if (!season) throw new Error("Season not found");
+
+  const now = new Date().toISOString();
+  const competitionUpdate = {
+    name: competitionName,
+    description: input.description?.trim()
+      ? sanitizeDisplayText(input.description.trim(), 2000)
+      : null,
+    visibility: input.visibility,
+    timezone,
+    logo_url: input.logoUrl?.trim() || null,
+    cover_image_url: input.coverImageUrl?.trim() || null,
+    status: input.competitionStatus,
+    updated_at: now,
+    game_platform: input.gamePlatform ?? null,
+  };
+
+  let { error: competitionError } = await admin
+    .from("competitions")
+    .update(competitionUpdate)
+    .eq("id", season.competition_id);
+
+  if (competitionError?.message?.toLowerCase().includes("game_platform")) {
+    const { game_platform: omittedPlatform, ...withoutPlatform } = competitionUpdate;
+    void omittedPlatform;
+    ({ error: competitionError } = await admin
+      .from("competitions")
+      .update(withoutPlatform)
+      .eq("id", season.competition_id));
+  }
+  if (competitionError) throw new Error(competitionError.message);
+
+  const { error: seasonError } = await admin
+    .from("seasons")
+    .update({
+      name: seasonName,
+      status: input.seasonStatus,
+      starts_at: startsAt,
+      ends_at: endsAt,
+      updated_at: now,
+    })
+    .eq("id", seasonId);
+  if (seasonError) throw new Error(seasonError.message);
+
+  if (input.gamePlatform && isGamePlatform(input.gamePlatform)) {
+    const { data: existingBanList } = await admin
+      .from("season_ban_list_entries")
+      .select("id")
+      .eq("season_id", seasonId)
+      .limit(1);
+
+    if (!existingBanList?.length) {
+      try {
+        await applyReferenceBanlistToSeason(admin, seasonId, input.gamePlatform);
+      } catch {
+        // Reference tables may not be synced yet.
+      }
+    }
+  }
+
+  revalidatePath("/");
+  revalidatePath("/organizer");
+  revalidatePath("/calendar");
+  revalidatePath("/standings");
+  revalidatePath(`/seasons/${seasonId}`);
+  revalidatePath(`/seasons/${seasonId}/ban-list`);
+  revalidatePath(`/seasons/${seasonId}/schedule`);
+}
+
 export async function addParticipantAction(
   seasonId: string,
   displayName: string,
@@ -397,37 +495,65 @@ export async function getOrganizerSeasonsAction() {
   return owned ?? [];
 }
 
-export async function getSeasonContextAction(seasonId: string) {
+async function assertOrganizerAccess(seasonId: string) {
+  const session = await requireAuth();
+  if (!(await isOrganizerForSeason(session.userId, seasonId))) {
+    throw new Error("Forbidden");
+  }
+  return session;
+}
+
+/** Lightweight access check for a single selected season (avoids loading all competitions). */
+export async function verifyOrganizerSeasonAccessAction(seasonId: string) {
+  const session = await requireAuth();
+  const allowed = await isOrganizerForSeason(session.userId, seasonId);
+  if (!allowed) {
+    return { allowed: false as const };
+  }
+
+  const admin = createAdminClient();
+  const { data: season } = await admin
+    .from("seasons")
+    .select("id, name, competitions(name)")
+    .eq("id", seasonId)
+    .single();
+
+  if (!season) {
+    return { allowed: false as const };
+  }
+
+  const competition = Array.isArray(season.competitions)
+    ? season.competitions[0]
+    : season.competitions;
+  const seasonLabel = competition?.name
+    ? `${competition.name} — ${season.name}`
+    : season.name;
+
+  return { allowed: true as const, seasonLabel };
+}
+
+const ORGANIZER_FIXTURE_COLUMNS =
+  "id, season_id, round_id, participant_a_id, participant_b_id, state, confirmed_start_at, is_bye, created_at";
+
+/** Fast path: tournament shell, roster, rules — no fixtures or ban list. */
+export async function getOrganizerSeasonCoreAction(seasonId: string) {
+  await assertOrganizerAccess(seasonId);
   const admin = createAdminClient();
   const seasonRow = await admin.from("seasons").select("*, competitions(*)").eq("id", seasonId).single();
   const competitionId = seasonRow.data?.competition_id ?? "";
 
-  const [ruleset, formatPlan, participants, memberships, fixtures, rounds, invitations] =
-    await Promise.all([
-      admin.from("rulesets").select("*").eq("season_id", seasonId).single(),
-      admin.from("format_plans").select("*").eq("season_id", seasonId).single(),
-      admin.from("participants").select("*").eq("competition_id", competitionId),
-      admin.from("memberships").select("*").eq("season_id", seasonId),
-      admin.from("fixtures").select("*").eq("season_id", seasonId).order("created_at"),
-      admin.from("rounds").select("*").eq("season_id", seasonId).order("sequence"),
-      admin
-        .from("season_invitations")
-        .select("id, email, display_name, participant_id, accepted_at, expires_at")
-        .eq("season_id", seasonId)
-        .is("accepted_at", null)
-        .gt("expires_at", new Date().toISOString()),
-    ]);
-
-  const banListRows = await getSeasonBanListWithPlatformDefaults(seasonId);
-
-  const fixtureIds = (fixtures.data ?? []).map((f) => f.id);
-  const { data: matches } = fixtureIds.length
-    ? await admin.from("matches").select("fixture_id, outcome").in("fixture_id", fixtureIds)
-    : { data: [] };
-
-  const matchesByFixtureId = Object.fromEntries(
-    (matches ?? []).map((m) => [m.fixture_id, m.outcome as string | null]),
-  );
+  const [ruleset, formatPlan, participants, memberships, invitations] = await Promise.all([
+    admin.from("rulesets").select("*").eq("season_id", seasonId).single(),
+    admin.from("format_plans").select("*").eq("season_id", seasonId).single(),
+    admin.from("participants").select("*").eq("competition_id", competitionId),
+    admin.from("memberships").select("*").eq("season_id", seasonId),
+    admin
+      .from("season_invitations")
+      .select("id, email, display_name, participant_id, accepted_at, expires_at")
+      .eq("season_id", seasonId)
+      .is("accepted_at", null)
+      .gt("expires_at", new Date().toISOString()),
+  ]);
 
   return {
     season: seasonRow.data,
@@ -435,10 +561,51 @@ export async function getSeasonContextAction(seasonId: string) {
     formatPlan: formatPlan.data,
     participants: participants.data ?? [],
     memberships: memberships.data ?? [],
+    invitations: invitations.data ?? [],
+  };
+}
+
+/** Deferred path: fixtures, rounds, and match outcomes for the organizer board. */
+export async function getOrganizerSeasonFixturesAction(seasonId: string) {
+  await assertOrganizerAccess(seasonId);
+  const admin = createAdminClient();
+
+  const [fixtures, rounds, matchesResult] = await Promise.all([
+    admin
+      .from("fixtures")
+      .select(ORGANIZER_FIXTURE_COLUMNS)
+      .eq("season_id", seasonId)
+      .order("created_at"),
+    admin.from("rounds").select("id, season_id, label, sequence").eq("season_id", seasonId).order("sequence"),
+    admin
+      .from("matches")
+      .select("fixture_id, outcome, fixtures!inner(season_id)")
+      .eq("fixtures.season_id", seasonId),
+  ]);
+
+  const matchesByFixtureId = Object.fromEntries(
+    (matchesResult.data ?? []).map((m) => [m.fixture_id, m.outcome as string | null]),
+  );
+
+  return {
     fixtures: fixtures.data ?? [],
     rounds: rounds.data ?? [],
-    invitations: invitations.data ?? [],
-    banList: banListRows,
     matchesByFixtureId,
   };
+}
+
+/** Deferred path: season ban list (may seed from platform reference on first load). */
+export async function getOrganizerSeasonBanListAction(seasonId: string) {
+  await assertOrganizerAccess(seasonId);
+  const banList = await getSeasonBanListWithPlatformDefaults(seasonId);
+  return { banList };
+}
+
+export async function getSeasonContextAction(seasonId: string) {
+  const [core, fixtures, banList] = await Promise.all([
+    getOrganizerSeasonCoreAction(seasonId),
+    getOrganizerSeasonFixturesAction(seasonId),
+    getOrganizerSeasonBanListAction(seasonId),
+  ]);
+  return { ...core, ...fixtures, ...banList };
 }

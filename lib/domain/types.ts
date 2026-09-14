@@ -124,6 +124,21 @@ export type Standing = {
   rebuiltAt: string;
 };
 
+export type UpdateTournamentDetailsInput = {
+  competitionName: string;
+  seasonName: string;
+  description?: string | null;
+  visibility: CompetitionVisibility;
+  timezone: string;
+  startsAt?: string | null;
+  endsAt?: string | null;
+  logoUrl?: string | null;
+  coverImageUrl?: string | null;
+  gamePlatform?: GamePlatform | null;
+  competitionStatus: CompetitionStatus;
+  seasonStatus: SeasonStatus;
+};
+
 export type CreateCompetitionWizardRequest = {
   name: string;
   description?: string | null;

@@ -14,12 +14,18 @@ import { ParticipantUsernameField } from "@/components/participant-username-fiel
 import { RosterPlayerRow } from "@/components/roster-player-row";
 import { ResultEntry } from "@/components/result-entry";
 import { OrganizerCollapsibleSection } from "@/components/organizer-collapsible-section";
+import {
+  TournamentDetailsEditor,
+  tournamentDetailsFromContext,
+} from "@/components/tournament-details-editor";
 import { TournamentBanListEditor } from "@/components/tournament-ban-list-editor";
 import {
   addParticipantAction,
   applyParticipantUsernameFromProfileAction,
-  getOrganizerSeasonsAction,
-  getSeasonContextAction,
+  getOrganizerSeasonBanListAction,
+  getOrganizerSeasonCoreAction,
+  getOrganizerSeasonFixturesAction,
+  verifyOrganizerSeasonAccessAction,
   updateParticipantPlayerIdAction,
   updateParticipantUsernameAction,
 } from "@/lib/actions/competition";
@@ -37,7 +43,10 @@ import type { ManualPairingInput, PairingRound } from "@/lib/domain/pairing";
 import type { GamePlatform, ScheduleGenerationMode } from "@/lib/domain/types";
 import { isGamePlatform } from "@/lib/game-platform";
 
-type SeasonContext = Awaited<ReturnType<typeof getSeasonContextAction>>;
+type SeasonCore = Awaited<ReturnType<typeof getOrganizerSeasonCoreAction>>;
+type SeasonFixtures = Awaited<ReturnType<typeof getOrganizerSeasonFixturesAction>>;
+type SeasonBanList = Awaited<ReturnType<typeof getOrganizerSeasonBanListAction>>;
+type SeasonContext = SeasonCore & Partial<SeasonFixtures & SeasonBanList>;
 
 type OrganizerBoardProps = {
   selectedSeasonId: string;
@@ -48,13 +57,13 @@ export function OrganizerBoard({
   selectedSeasonId,
   mdLeagueImportEnabled = false,
 }: OrganizerBoardProps) {
-  const [seasons, setSeasons] = useState<
-    Array<{ id: string; name: string; seasons: Array<{ id: string; name: string }> }>
-  >([]);
   const [seasonId, setSeasonId] = useState(selectedSeasonId);
+  const [seasonLabel, setSeasonLabel] = useState("Tournament");
   const [accessDenied, setAccessDenied] = useState(false);
   const [ctx, setCtx] = useState<SeasonContext | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loadingCore, setLoadingCore] = useState(true);
+  const [loadingFixtures, setLoadingFixtures] = useState(false);
+  const [loadingBanList, setLoadingBanList] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [genMode, setGenMode] = useState<ScheduleGenerationMode>("single_round_robin");
   const [manualPairings, setManualPairings] = useState<ManualPairingInput[]>([]);
@@ -83,34 +92,79 @@ export function OrganizerBoard({
     );
   }
 
-  const load = useCallback(async (sid: string) => {
+  const loadCore = useCallback(async (sid: string) => {
     if (!sid) return;
-    setLoading(true);
+    const data = await getOrganizerSeasonCoreAction(sid);
+    setCtx((prev) => ({
+      ...data,
+      fixtures: prev?.fixtures,
+      rounds: prev?.rounds,
+      matchesByFixtureId: prev?.matchesByFixtureId,
+      banList: prev?.banList,
+    }));
+    const mode =
+      (data.ruleset?.schedule_generation_mode as ScheduleGenerationMode) ?? "single_round_robin";
+    setGenMode(mode);
+  }, []);
+
+  const loadFixtures = useCallback(async (sid: string) => {
+    if (!sid) return;
+    setLoadingFixtures(true);
     try {
-      const data = await getSeasonContextAction(sid);
-      setCtx(data);
-      const mode = (data.ruleset?.schedule_generation_mode as ScheduleGenerationMode) ?? "single_round_robin";
-      setGenMode(mode);
+      const data = await getOrganizerSeasonFixturesAction(sid);
+      setCtx((prev) => (prev ? { ...prev, ...data } : null));
     } finally {
-      setLoading(false);
+      setLoadingFixtures(false);
+    }
+  }, []);
+
+  const loadBanList = useCallback(async (sid: string) => {
+    if (!sid) return;
+    setLoadingBanList(true);
+    try {
+      const data = await getOrganizerSeasonBanListAction(sid);
+      setCtx((prev) => (prev ? { ...prev, ...data } : null));
+    } finally {
+      setLoadingBanList(false);
     }
   }, []);
 
   useEffect(() => {
-    getOrganizerSeasonsAction().then((data) => {
-      setSeasons(data as typeof seasons);
-      const ownsSeason = data.some((c) =>
-        (c.seasons ?? []).some((s) => s.id === selectedSeasonId),
-      );
-      if (ownsSeason) {
-        setSeasonId(selectedSeasonId);
-        load(selectedSeasonId);
-      } else {
+    let cancelled = false;
+
+    (async () => {
+      setLoadingCore(true);
+      setAccessDenied(false);
+      setCtx(null);
+      setSeasonId(selectedSeasonId);
+
+      const access = await verifyOrganizerSeasonAccessAction(selectedSeasonId);
+      if (cancelled) return;
+
+      if (!access.allowed) {
         setAccessDenied(true);
-        setLoading(false);
+        setLoadingCore(false);
+        return;
       }
-    });
-  }, [selectedSeasonId, load]);
+
+      setSeasonLabel(access.seasonLabel);
+
+      try {
+        await loadCore(selectedSeasonId);
+      } finally {
+        if (!cancelled) setLoadingCore(false);
+      }
+
+      if (!cancelled) {
+        void loadFixtures(selectedSeasonId);
+        void loadBanList(selectedSeasonId);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedSeasonId, loadCore, loadFixtures, loadBanList]);
 
   const eligibleParticipants = (ctx?.participants ?? []).filter((p) =>
     ctx?.memberships?.some(
@@ -127,7 +181,7 @@ export function OrganizerBoard({
     );
     setNewPlayer("");
     setNewPlayerUsername("");
-    await load(seasonId);
+    await loadCore(seasonId);
     setMessage("Player added");
   }
 
@@ -139,7 +193,7 @@ export function OrganizerBoard({
       displayName,
       participantId,
     );
-    await load(seasonId);
+    await loadCore(seasonId);
     return acceptUrl;
   }
 
@@ -182,7 +236,7 @@ export function OrganizerBoard({
     setPreviewToken(null);
     setPreviewRounds(null);
     setPreviewDirty(false);
-    await load(seasonId);
+    await loadFixtures(seasonId);
     setMessage("Fixtures generated");
   }
 
@@ -215,15 +269,12 @@ export function OrganizerBoard({
   const rawPlatform = (competition as { game_platform?: string | null } | undefined)?.game_platform;
   const storedGamePlatform: GamePlatform | null = isGamePlatform(rawPlatform) ? rawPlatform : null;
 
-  const seasonLabel = useMemo(() => {
-    for (const c of seasons) {
-      const season = c.seasons?.find((s) => s.id === seasonId);
-      if (season) return `${c.name} — ${season.name}`;
-    }
-    return ctx?.season?.name ?? "Tournament";
-  }, [seasons, seasonId, ctx?.season?.name]);
+  const tournamentDetailsInitial = useMemo(
+    () => tournamentDetailsFromContext(ctx?.season),
+    [ctx?.season],
+  );
 
-  if (loading && !ctx) {
+  if (loadingCore && !ctx) {
     return <p>Loading…</p>;
   }
 
@@ -234,18 +285,6 @@ export function OrganizerBoard({
         <p>You do not have organizer access to this tournament. Pick one you manage from the home page.</p>
         <Link href="/" className="btn-primary inline-block no-underline">
           Choose tournament
-        </Link>
-      </div>
-    );
-  }
-
-  if (!seasons.length) {
-    return (
-      <div className="panel space-y-4 p-6">
-        <h1 className="text-2xl font-bold">Organizer board</h1>
-        <p>No competitions yet.</p>
-        <Link href="/organizer/create" className="btn-primary inline-block no-underline">
-          Create your first competition
         </Link>
       </div>
     );
@@ -271,6 +310,20 @@ export function OrganizerBoard({
 
       {message && (
         <p className="rounded-md bg-[var(--color-accent-soft)] p-3 text-sm">{message}</p>
+      )}
+
+      {seasonId && tournamentDetailsInitial && (
+        <TournamentDetailsEditor
+          key={`${seasonId}-${ctx?.season?.updated_at ?? "new"}`}
+          seasonId={seasonId}
+          initial={tournamentDetailsInitial}
+          onSaved={async () => {
+            await loadCore(seasonId);
+            const access = await verifyOrganizerSeasonAccessAction(seasonId);
+            if (access.allowed) setSeasonLabel(access.seasonLabel);
+            setMessage("Tournament details updated");
+          }}
+        />
       )}
 
       <OrganizerCollapsibleSection
@@ -306,15 +359,15 @@ export function OrganizerBoard({
               pendingInviteEmail={pendingInviteEmail(p.id, p.display_name)}
               onSaveUsername={async (participantId, username) => {
                 await updateParticipantUsernameAction(seasonId, participantId, username);
-                await load(seasonId);
+                await loadCore(seasonId);
               }}
               onSavePlayerId={async (participantId, clientPlayerId) => {
                 await updateParticipantPlayerIdAction(seasonId, participantId, clientPlayerId);
-                await load(seasonId);
+                await loadCore(seasonId);
               }}
               onApplyFromProfile={async (participantId) => {
                 await applyParticipantUsernameFromProfileAction(seasonId, participantId);
-                await load(seasonId);
+                await loadCore(seasonId);
               }}
               onInvite={handleInvitePlayer}
             />
@@ -322,13 +375,17 @@ export function OrganizerBoard({
         </div>
       </OrganizerCollapsibleSection>
 
-      {seasonId && (
-        <TournamentBanListEditor
-          seasonId={seasonId}
-          storedGamePlatform={storedGamePlatform}
-          entries={ctx?.banList ?? []}
-          onChange={() => load(seasonId)}
-        />
+      {seasonId && loadingBanList && !ctx?.banList ? (
+        <p className="text-sm text-[var(--color-text-muted)]">Loading ban list…</p>
+      ) : (
+        seasonId && (
+          <TournamentBanListEditor
+            seasonId={seasonId}
+            storedGamePlatform={storedGamePlatform}
+            entries={ctx?.banList ?? []}
+            onChange={() => loadBanList(seasonId)}
+          />
+        )
       )}
 
       {seasonId && (
@@ -392,9 +449,11 @@ export function OrganizerBoard({
         <h2 className="font-semibold">
           Fixtures ({ctx?.fixtures?.filter((f) => !f.is_bye).length ?? 0})
         </h2>
-        {fixtureGroups.length === 0 && (
+        {loadingFixtures && !ctx?.fixtures ? (
+          <p className="text-sm text-[var(--color-text-muted)]">Loading fixtures…</p>
+        ) : fixtureGroups.length === 0 ? (
           <p className="text-sm text-[var(--color-text-muted)]">No fixtures yet — generate a schedule above.</p>
-        )}
+        ) : null}
         {fixtureGroups.map(({ round, fixtures: roundFixtures }, roundIndex) => {
           const scheduledCount = roundFixtures.filter((f) => f.confirmed_start_at).length;
           return (
@@ -442,11 +501,11 @@ export function OrganizerBoard({
                         linkedAccountId={linkedAccountId(pa.id)}
                         onSave={async (participantId, username) => {
                           await updateParticipantUsernameAction(seasonId, participantId, username);
-                          await load(seasonId);
+                          await loadCore(seasonId);
                         }}
                         onApplyFromProfile={async (participantId) => {
                           await applyParticipantUsernameFromProfileAction(seasonId, participantId);
-                          await load(seasonId);
+                          await loadCore(seasonId);
                         }}
                       />
                     )}
@@ -458,11 +517,11 @@ export function OrganizerBoard({
                         linkedAccountId={linkedAccountId(pb.id)}
                         onSave={async (participantId, username) => {
                           await updateParticipantUsernameAction(seasonId, participantId, username);
-                          await load(seasonId);
+                          await loadCore(seasonId);
                         }}
                         onApplyFromProfile={async (participantId) => {
                           await applyParticipantUsernameFromProfileAction(seasonId, participantId);
-                          await load(seasonId);
+                          await loadCore(seasonId);
                         }}
                       />
                     )}
@@ -473,7 +532,7 @@ export function OrganizerBoard({
                     confirmedStartAt={fixture.confirmed_start_at}
                     onConfirm={async (at) => {
                       await confirmScheduleAction(fixture.id, at);
-                      await load(seasonId);
+                      await loadFixtures(seasonId);
                       setMessage("Schedule saved");
                     }}
                   />
@@ -484,7 +543,7 @@ export function OrganizerBoard({
                     className="btn-secondary text-xs"
                     onClick={async () => {
                       await postponeFixtureAction(fixture.id);
-                      await load(seasonId);
+                      await loadFixtures(seasonId);
                     }}
                   >
                     Postpone
@@ -494,7 +553,7 @@ export function OrganizerBoard({
                     className="btn-danger text-xs"
                     onClick={async () => {
                       await cancelFixtureAction(fixture.id);
-                      await load(seasonId);
+                      await loadFixtures(seasonId);
                     }}
                   >
                     Cancel
@@ -520,7 +579,7 @@ export function OrganizerBoard({
                     playerBName={pb?.display_name}
                     onSubmit={async (games) => {
                       await submitResultAction(fixture.id, games);
-                      await load(seasonId);
+                      await loadFixtures(seasonId);
                     }}
                   />
                 )}
@@ -530,7 +589,7 @@ export function OrganizerBoard({
                     className="btn-primary text-xs"
                     onClick={async () => {
                       await finalizeResultAction(fixture.id);
-                      await load(seasonId);
+                      await loadFixtures(seasonId);
                     }}
                   >
                     Finalize result
@@ -542,7 +601,7 @@ export function OrganizerBoard({
                     playerBName={pb?.display_name}
                     onSubmit={async (games) => {
                       await correctResultAction(fixture.id, games);
-                      await load(seasonId);
+                      await loadFixtures(seasonId);
                     }}
                   />
                 )}
