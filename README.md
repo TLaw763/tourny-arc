@@ -1,8 +1,11 @@
 # Tornament Enigmic
 
+> [!WARNING]
+> **No longer in use (archived 2026-10-24).** Current league and tournament development happens in **[enigmic-competition-tools](https://github.com/TLaw763/enigmic-competition-tools)**, live at [comp.enigmic.co.za](https://comp.enigmic.co.za). This repo is kept for reference only; the Vercel deployment (tornament.enigmic.co.za) has been taken down.
+
 League and tournament management — production slice per [docs/standalone-launch-spec.md](docs/standalone-launch-spec.md).
 
-**Production:** [tornament.enigmic.co.za](https://tornament.enigmic.co.za)  
+**Production (retired):** ~~tornament.enigmic.co.za~~  
 **Stack:** Next.js App Router, Supabase Auth, Supabase Postgres, Server Actions, Vercel.
 
 ## Local setup
